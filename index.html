@@ -215,14 +215,13 @@ body.fading{animation:pageFadeOut .25s ease forwards;}
   <div class="hero-inner">
     <div class="eyebrow">SunCast Studio · Tooling</div>
     <h1>DAMAGE<br>ROLL<br><em>MOD</em><br>MAKER</h1>
-    <p class="subtitle">A visual tool for building mods for the Damage Roll game — no coding required.</p>
+    <p class="subtitle">A visual tool for building mods for the Damage Roll game - no coding required.</p>
     <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;">
       <a class="hero-cta" href="modmaker-for-damageroll.html" onclick="event.preventDefault();document.body.classList.add('fading');setTimeout(()=>window.location.href='modmaker-for-damageroll.html',260);">Open Mod Maker <span class="arrow">→</span></a>
       <button class="hero-cta" onclick="document.getElementById('home-load-input').click()" style="background:transparent;border:1.5px solid rgba(91,110,255,.45);color:var(--accent);">⬆ Load .json</button>
       <input type="file" id="home-load-input" accept=".json,application/json" style="display:none;">
     </div>
   </div>
-  <div class="hero-version">v0.5.5 compatible</div>
 </section>
 
 <section id="what">
@@ -230,7 +229,7 @@ body.fading{animation:pageFadeOut .25s ease forwards;}
   <div class="what-content">
     <h2>What Is This?</h2>
     <p>The Mod Maker is a <strong>visual node editor</strong> that lets you create custom content for Damage Roll and export it as a <strong>.json file</strong> the game can load directly.</p>
-    <p>You build your mod by connecting modules to a central root node — cards, decks, color themes, and visual overrides. When you're done, hit export and drop the file into the game's Mods panel.</p>
+    <p>You build your mod by connecting modules to a central root node - cards, decks, color themes, and visual overrides. When you're done, hit export and drop the file into the game's Mods panel.</p>
     <p>No knowledge of JSON or code required. What you see is what you get.</p>
   </div>
 </section>
@@ -241,13 +240,13 @@ body.fading{animation:pageFadeOut .25s ease forwards;}
     <div class="tip">
       <div class="tip-num">01</div>
       <h3>Start at the Root</h3>
-      <p>The center node is your mod's identity. Fill in the name, version, and author first — the export uses these as the filename.</p>
+      <p>The center node is your mod's identity. Fill in the name, version, and author first - the export uses these as the filename.</p>
       <span class="tip-tag">Required</span>
     </div>
     <div class="tip">
       <div class="tip-num">02</div>
       <h3>One Module Per Type</h3>
-      <p>Each mod can only have one Cards module, one Theme module, etc. But a single mod can include all types at once — mix and match freely.</p>
+      <p>Each mod can only have one Cards module, one Theme module, etc. But a single mod can include all types at once - mix and match freely.</p>
       <span class="tip-tag">Structure</span>
     </div>
     <div class="tip">
@@ -265,7 +264,7 @@ body.fading{animation:pageFadeOut .25s ease forwards;}
     <div class="tip">
       <div class="tip-num">05</div>
       <h3>Preview Before Export</h3>
-      <p>Use the <strong>{ } Preview</strong> button to inspect the raw JSON before downloading. It's a good sanity check — especially for deck card lists.</p>
+      <p>Use the <strong>{ } Preview</strong> button to inspect the raw JSON before downloading. It's a good sanity check - especially for deck card lists.</p>
       <span class="tip-tag">Workflow</span>
     </div>
     <div class="tip">
@@ -333,7 +332,12 @@ body.fading{animation:pageFadeOut .25s ease forwards;}
 
 <footer>
   <p>SunCast Studio · Damage Roll Mod Maker</p>
-  <a class="footer-link" href="modmaker-for-damageroll.html" onclick="event.preventDefault();document.body.classList.add('fading');setTimeout(()=>window.location.href='modmaker-for-damageroll.html',260);">Open Mod Maker →</a>
+  <div style="display:flex;align-items:center;gap:20px;">
+    <a class="footer-link" href="https://suncast-studios.itch.io" target="_blank" rel="noopener">itch.io</a>
+    <a class="footer-link" href="https://www.youtube.com/@SunCastStudiosYT" target="_blank" rel="noopener">youtube</a>
+    <a class="footer-link" href="https://www.instagram.com/suncaststudios.indie/" target="_blank" rel="noopener">instagram</a>
+    <a class="footer-link" href="modmaker-for-damageroll.html" onclick="event.preventDefault();document.body.classList.add('fading');setTimeout(()=>window.location.href='modmaker-for-damageroll.html',260);">Open Mod Maker →</a>
+  </div>
 </footer>
 
 <!-- Resume banner -->
