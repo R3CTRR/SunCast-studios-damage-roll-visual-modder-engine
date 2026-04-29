@@ -196,6 +196,11 @@ h1{animation-delay:.2s;}
 .subtitle{animation-delay:.32s;}
 .hero-cta{animation-delay:.44s;}
 
+@keyframes pageFadeIn{from{opacity:0;}to{opacity:1;}}
+body{animation:pageFadeIn .35s ease forwards;}
+@keyframes pageFadeOut{from{opacity:1;}to{opacity:0;}}
+body.fading{animation:pageFadeOut .25s ease forwards;}
+
 @media(max-width:700px){
   #hero,#what,#tips,#outputs,footer{padding-left:24px;padding-right:24px;}
   #what{grid-template-columns:1fr;}.section-num{display:none;}
@@ -211,7 +216,11 @@ h1{animation-delay:.2s;}
     <div class="eyebrow">SunCast Studio · Tooling</div>
     <h1>DAMAGE<br>ROLL<br><em>MOD</em><br>MAKER</h1>
     <p class="subtitle">A visual tool for building mods for the Damage Roll game — no coding required.</p>
-    <a class="hero-cta" href="modmaker-for-damageroll.html">Open Mod Maker <span class="arrow">→</span></a>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;">
+      <a class="hero-cta" href="modmaker-for-damageroll.html" onclick="event.preventDefault();document.body.classList.add('fading');setTimeout(()=>window.location.href='modmaker-for-damageroll.html',260);">Open Mod Maker <span class="arrow">→</span></a>
+      <button class="hero-cta" onclick="document.getElementById('home-load-input').click()" style="background:transparent;border:1.5px solid rgba(91,110,255,.45);color:var(--accent);">⬆ Load .json</button>
+      <input type="file" id="home-load-input" accept=".json,application/json" style="display:none;">
+    </div>
   </div>
   <div class="hero-version">v0.5.5 compatible</div>
 </section>
@@ -324,8 +333,58 @@ h1{animation-delay:.2s;}
 
 <footer>
   <p>SunCast Studio · Damage Roll Mod Maker</p>
-  <a class="footer-link" href="modmaker-for-damageroll.html">Open Mod Maker →</a>
+  <a class="footer-link" href="modmaker-for-damageroll.html" onclick="event.preventDefault();document.body.classList.add('fading');setTimeout(()=>window.location.href='modmaker-for-damageroll.html',260);">Open Mod Maker →</a>
 </footer>
+
+<!-- Resume banner -->
+<div id="resume-banner" style="display:none;position:fixed;bottom:28px;left:50%;transform:translateX(-50%);z-index:200;background:#12121a;border:1px solid rgba(91,110,255,.4);border-radius:12px;padding:14px 20px;display:none;align-items:center;gap:16px;box-shadow:0 8px 40px rgba(0,0,0,.7);backdrop-filter:blur(10px);max-width:520px;width:90%;">
+  <span style="font-size:18px;flex-shrink:0;">💾</span>
+  <div style="flex:1;min-width:0;">
+    <div style="font-family:'Syne',sans-serif;font-size:12px;font-weight:700;color:#e2e2f0;margin-bottom:2px;">Unsaved project found</div>
+    <div id="banner-desc" style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#7070a0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
+  </div>
+  <a id="banner-resume-btn" href="modmaker-for-damageroll.html" onclick="sessionStorage.setItem('dmg_auto_resume','1')" style="padding:8px 14px;background:#5b6eff;border-radius:7px;color:#fff;font-family:'Syne',sans-serif;font-size:11px;font-weight:800;text-decoration:none;white-space:nowrap;flex-shrink:0;transition:opacity .15s;" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">Resume →</a>
+  <button onclick="document.getElementById('resume-banner').style.display='none';localStorage.removeItem('dmg_modmaker_draft')" style="background:none;border:none;color:#3a3a60;font-size:16px;cursor:pointer;flex-shrink:0;padding:2px 4px;line-height:1;" title="Dismiss">✕</button>
+</div>
+
+<script>
+(function(){
+  // ── Existing draft banner logic ──
+  try{
+    const raw=localStorage.getItem('dmg_modmaker_draft');
+    if(!raw)return;
+    const snap=JSON.parse(raw);
+    const hasModules=Object.keys(snap.st?.modules||{}).length>0;
+    const name=snap.fields?.['c-name']?.trim();
+    const hasName=name&&name!=='';
+    if(!hasModules&&!hasName)return;
+    const ago=Math.round((Date.now()-snap.savedAt)/60000);
+    const agoStr=ago<1?'just now':ago===1?'1 min ago':ago<60?ago+' min ago':Math.round(ago/60)+' hr ago';
+    const label=name||'Unnamed Mod';
+    document.getElementById('banner-desc').textContent=`"${label}" · last saved ${agoStr}`;
+    document.getElementById('resume-banner').style.display='flex';
+  }catch(e){}
+
+  // ── Load .json from homepage ──
+  document.getElementById('home-load-input').addEventListener('change',function(){
+    const file=this.files[0];
+    this.value='';
+    if(!file)return;
+    const reader=new FileReader();
+    reader.onload=e=>{
+      let mod;
+      try{mod=JSON.parse(e.target.result);}
+      catch(err){alert('That file doesn\'t look like valid JSON.');return;}
+      if(typeof mod!=='object'||Array.isArray(mod)||!mod){alert('That doesn\'t look like a mod file.');return;}
+      // Stash in sessionStorage so the modmaker can pick it up immediately on load
+      sessionStorage.setItem('dmg_load_mod',JSON.stringify(mod));
+      document.body.classList.add('fading');
+      setTimeout(()=>window.location.href='modmaker-for-damageroll.html',260);
+    };
+    reader.readAsText(file);
+  });
+})();
+</script>
 
 </body>
 </html>
