@@ -171,18 +171,24 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 #toolbar{position:fixed;bottom:18px;right:18px;z-index:100;display:flex;gap:6px;}
 .tool-btn{padding:7px 13px;border-radius:7px;font-size:11px;font-weight:700;font-family:var(--sans);cursor:pointer;border:1px solid var(--border);background:rgba(10,10,15,.92);backdrop-filter:blur(8px);color:var(--text-dim);transition:all .15s;}
 .tool-btn:hover{color:var(--text);border-color:var(--border-bright);}
+@keyframes pageFadeIn{from{opacity:0;}to{opacity:1;}}
+body{animation:pageFadeIn .35s ease forwards;}
+@keyframes pageFadeOut{from{opacity:1;}to{opacity:0;}}
+body.fading{animation:pageFadeOut .25s ease forwards;}
 </style>
 </head>
 <body>
 
 <div id="topbar">
-  <a href="index.html" class="tb-btn" style="text-decoration:none;">← Home</a>
+  <a href="index.html" class="tb-btn" style="text-decoration:none;" onclick="event.preventDefault();document.body.classList.add('fading');setTimeout(()=>window.location.href='index.html',260);">← Home</a>
   <div class="sep"></div>
   <div class="brand">Damage Roll <em>Mod Maker</em></div>
   <div class="sep"></div>
   <div class="hint">drag nodes · add modules · export .json</div>
   <div class="spacer"></div>
   <button class="tb-btn" onclick="resetCanvas()">↺ Reset</button>
+  <button class="tb-btn" onclick="document.getElementById('load-file-input').click()">⬆ Load .json</button>
+  <input type="file" id="load-file-input" accept=".json,application/json" style="display:none;" onchange="handleLoadFile(this)">
   <button class="tb-btn" onclick="showJson()">{ } Preview</button>
   <button class="tb-btn primary" onclick="exportMod()">⬇ Export .json</button>
 </div>
@@ -242,7 +248,29 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
   </div>
 </div>
 
+<div id="load-err-bg" style="position:fixed;inset:0;background:rgba(0,0,0,.78);backdrop-filter:blur(8px);z-index:400;display:none;align-items:center;justify-content:center;">
+  <div style="background:#12121a;border:1px solid rgba(255,107,107,.35);border-radius:16px;padding:28px;max-width:380px;width:90%;box-shadow:0 24px 80px rgba(0,0,0,.9);">
+    <div style="font-size:22px;margin-bottom:10px;">⚠️</div>
+    <h3 style="font-family:var(--sans);font-size:15px;font-weight:800;color:var(--text);margin-bottom:8px;">Couldn't load mod file</h3>
+    <p id="load-err-msg" style="font-size:12px;color:var(--text-dim);line-height:1.7;margin-bottom:22px;font-family:var(--mono);"></p>
+    <button onclick="document.getElementById('load-err-bg').style.display='none'" style="width:100%;padding:10px;background:none;border:1px solid var(--border);border-radius:8px;color:var(--text-dim);font-size:12px;font-weight:700;font-family:var(--sans);cursor:pointer;">Dismiss</button>
+  </div>
+</div>
+
 <div id="toast"></div>
+
+<!-- Resume dialog -->
+<div id="resume-bg" style="position:fixed;inset:0;background:rgba(0,0,0,.78);backdrop-filter:blur(8px);z-index:400;display:none;align-items:center;justify-content:center;">
+  <div id="resume-modal" style="background:#12121a;border:1px solid rgba(91,110,255,.35);border-radius:16px;padding:28px 28px 22px;max-width:400px;width:90%;box-shadow:0 24px 80px rgba(0,0,0,.9);">
+    <div style="font-size:22px;margin-bottom:10px;">💾</div>
+    <h3 style="font-family:var(--sans);font-size:16px;font-weight:800;color:var(--text);margin-bottom:8px;">Unsaved project found</h3>
+    <p id="resume-desc" style="font-size:12px;color:var(--text-dim);line-height:1.7;margin-bottom:22px;font-family:var(--mono);"></p>
+    <div style="display:flex;gap:10px;">
+      <button onclick="resumeDraft()" style="flex:1;padding:10px;background:var(--accent);border:none;border-radius:8px;color:#fff;font-size:12px;font-weight:800;font-family:var(--sans);cursor:pointer;letter-spacing:.3px;transition:opacity .15s;" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">Resume Project</button>
+      <button onclick="discardDraft()" style="flex:1;padding:10px;background:none;border:1px solid var(--border);border-radius:8px;color:var(--text-dim);font-size:12px;font-weight:700;font-family:var(--sans);cursor:pointer;letter-spacing:.3px;transition:all .15s;" onmouseover="this.style.borderColor='var(--border-bright)';this.style.color='var(--text)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-dim)'">Start Fresh</button>
+    </div>
+  </div>
+</div>
 
 <script>
 const CLASSES={attack:'Attack',heal:'Heal',drain:'Drain',debuff:'Debuff',buff:'Buff',reflect:'Reflect',poison:'Poison',burn:'Burn',freeze:'Freeze',curse:'Curse',tariff:'Tariff',chain:'Chain',pierce:'Pierce',multi:'Multi',reroll:'Reroll',utility:'Utility'};
@@ -403,7 +431,7 @@ function addModule(type){
   st.modules[type]=id;
   st.contents[id]=[];
   st.conns.push({from:centerNodeId,to:id,color:MOD_COLORS[type]});
-  drawLines();
+  requestAnimationFrame(drawLines);
 }
 
 function removeModule(id,type){
@@ -685,16 +713,18 @@ function exportMod(){
   const blob=new Blob([JSON.stringify(mod,null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');a.href=url;a.download=name+'.json';a.click();URL.revokeObjectURL(url);
+  clearDraft();
   showToast('Exported '+name+'.json');
 }
 
 function resetCanvas(){
   if(!confirm('Reset everything? All mod data will be lost.'))return;
-  // Remove all node elements from DOM (covers orphans too)
+  clearDraft();
   canvas.querySelectorAll('.node').forEach(el=>el.remove());
   Object.assign(st,{nodes:{},conns:[],zoom:1,panX:0,panY:0,nid:1,cardId:1000,modules:{},contents:{}});
   centerNodeId=null;svg.innerHTML='';
-  init();
+  createCenter();
+  centerView();
 }
 
 function showToast(msg,type){
@@ -703,9 +733,455 @@ function showToast(msg,type){
   t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400);
 }
 
-function init(){
+// ── Autosave ──
+const SAVE_KEY='dmg_modmaker_draft';
+let saveTimer=null;
+
+function collectFieldData(){
+  // Snapshot all current input/select/textarea values keyed by element id
+  const fields={};
+  canvas.querySelectorAll('input,select,textarea').forEach(el=>{
+    if(el.id)fields[el.id]=el.value;
+  });
+  return fields;
+}
+
+function saveDraft(){
+  try{
+    const snap={
+      st:JSON.parse(JSON.stringify(st)),
+      centerNodeId,
+      fields:collectFieldData(),
+      savedAt:Date.now()
+    };
+    localStorage.setItem(SAVE_KEY,JSON.stringify(snap));
+  }catch(e){/* storage full or unavailable */}
+}
+
+function clearDraft(){
+  localStorage.removeItem(SAVE_KEY);
+}
+
+function scheduleSave(){
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(saveDraft,800);
+}
+
+// Save on any input change inside canvas
+canvas.addEventListener('input',scheduleSave);
+canvas.addEventListener('change',scheduleSave);
+
+// Save immediately before tab closes
+window.addEventListener('beforeunload',()=>{
+  // Only save if there's actual content beyond a blank mod
+  const hasContent=Object.keys(st.modules).length>0||
+    (document.getElementById('c-name')?.value.trim()&&document.getElementById('c-name').value.trim()!=='');
+  if(hasContent)saveDraft();
+});
+
+// ── Draft restore ──
+function isDraftMeaningful(snap){
+  if(!snap||!snap.st)return false;
+  const hasModules=Object.keys(snap.st.modules||{}).length>0;
+  const name=snap.fields?.['c-name']?.trim();
+  const hasName=name&&name!=='';
+  return hasModules||hasName;
+}
+
+function resumeDraft(){
+  document.getElementById('resume-bg').style.display='none';
+  const raw=localStorage.getItem(SAVE_KEY);
+  if(!raw)return;
+  const snap=JSON.parse(raw);
+
+  // Restore st
+  Object.assign(st,snap.st);
+  centerNodeId=snap.centerNodeId;
+
+  // Rebuild all nodes from saved st
+  canvas.querySelectorAll('.node').forEach(el=>el.remove());
+  svg.innerHTML='';
+
+  // Recreate center node
+  rebuildCenterNode();
+
+  // Recreate module nodes
+  for(const[type,modId]of Object.entries(st.modules)){
+    rebuildModuleNode(type,modId);
+  }
+
+  // Recreate content nodes
+  for(const[modId,cids]of Object.entries(st.contents)){
+    const type=Object.keys(st.modules).find(k=>st.modules[k]===modId);
+    if(!type)continue;
+    for(const cid of cids){
+      rebuildContentNode(type,modId,cid);
+    }
+  }
+
+  // Restore all field values
+  requestAnimationFrame(()=>{
+    for(const[id,val]of Object.entries(snap.fields||{})){
+      const el=document.getElementById(id);
+      if(el)el.value=val;
+    }
+    // Re-sync display elements that depend on field values
+    syncDisplays();
+    applyXform();
+    requestAnimationFrame(drawLines);
+  });
+}
+
+function discardDraft(){
+  clearDraft();
+  document.getElementById('resume-bg').style.display='none';
   createCenter();
   centerView();
+}
+
+function checkForDraft(){
+  try{
+    const raw=localStorage.getItem(SAVE_KEY);
+    if(!raw)return false;
+    const snap=JSON.parse(raw);
+    if(!isDraftMeaningful(snap))return false;
+    const name=snap.fields?.['c-name']?.trim()||'Unnamed Mod';
+    const ago=Math.round((Date.now()-snap.savedAt)/60000);
+    const agoStr=ago<1?'just now':ago===1?'1 minute ago':ago<60?ago+' minutes ago':Math.round(ago/60)+' hours ago';
+    document.getElementById('resume-desc').textContent=
+      `"${name}" · last saved ${agoStr}`;
+    document.getElementById('resume-bg').style.display='flex';
+    return true;
+  }catch(e){return false;}
+}
+
+// ── Rebuild helpers (recreate DOM nodes from saved state) ──
+function rebuildCenterNode(){
+  const id=centerNodeId;
+  const nd=st.nodes[id];
+  const hdr=`<div class="node-header">
+    <span class="nh-icon">⬡</span>
+    <span class="nh-title">Mod Root</span>
+    <span class="nh-badge">center</span>
+    <div class="port port-out port-center" title="Connect modules here"></div>
+  </div>`;
+  const body=`
+    <div class="nf"><label>Mod Name</label><input type="text" id="c-name" placeholder="My Awesome Mod"></div>
+    <div class="nf"><label>Version</label><input type="text" id="c-version" placeholder="1.0.0"></div>
+    <div class="nf"><label>Author</label><input type="text" id="c-author" placeholder="your name"></div>
+    <button class="add-btn" onclick="openModal()">+ Add Module</button>
+  `;
+  const el=document.createElement('div');
+  el.className='node node-center';el.id=id;
+  el.style.cssText=`left:${nd.x}px;top:${nd.y}px;`;
+  el.innerHTML=hdr+`<div class="node-body">${body}</div>`;
+  canvas.appendChild(el);
+  el.querySelector('.node-header').addEventListener('mousedown',e=>{
+    if(!e.target.classList.contains('nh-del'))startDrag(e,id);
+  });
+}
+
+function rebuildModuleNode(type,id){
+  const nd=st.nodes[id];
+  if(!nd)return;
+  const MODULE_TITLES={cards:'Cards Module',decks:'Decks Module',theme:'Theme Module',visuals:'Visuals Module'};
+  const MODULE_DESCS={cards:'Custom cards connect here.',decks:'Custom decks connect here.',theme:`Color vars — max ${THEME_VARS.length}`,visuals:`Visual overrides — max ${Object.keys(VISUAL_KEYS).length}`};
+  const ADD_LABELS={cards:'+ Add Card',decks:'+ Add Deck',theme:'+ Add Color Var',visuals:'+ Add Visual Override'};
+  const hdr=`<div class="node-header">
+    <span class="nh-icon">${MOD_ICONS[type]}</span>
+    <span class="nh-title">${MODULE_TITLES[type]}</span>
+    <span class="nh-badge" id="mb-${id}">0</span>
+    <button class="nh-del" onclick="removeModule('${id}','${type}')">✕</button>
+    <div class="port port-in port-module" style="left:-7px;top:50%;margin-top:-7px;position:absolute;" title="From mod root"></div>
+    <div class="port port-out port-module" title="To content nodes"></div>
+  </div>`;
+  const body=`<div class="node-desc">${MODULE_DESCS[type]}</div>
+    <button class="add-btn" onclick="addContent('${type}','${id}')">${ADD_LABELS[type]}</button>`;
+  const el=document.createElement('div');
+  el.className=`node node-module mod-${type}`;el.id=id;
+  el.style.cssText=`left:${nd.x}px;top:${nd.y}px;`;
+  el.innerHTML=hdr+`<div class="node-body">${body}</div>`;
+  canvas.appendChild(el);
+  el.querySelector('.node-header').addEventListener('mousedown',e=>{
+    if(!e.target.classList.contains('nh-del'))startDrag(e,id);
+  });
+}
+
+function rebuildContentNode(type,modId,id){
+  const nd=st.nodes[id];
+  if(!nd)return;
+  let hdr='',body='';
+  if(type==='cards'){
+    // Use a placeholder cardId — the real value is restored from saved fields
+    hdr=cardHdr(id);body=cardBody(id,st.cardId);
+  }else if(type==='decks'){
+    hdr=deckHdr(id);body=deckBody(id);
+  }else if(type==='theme'){
+    const first=THEME_VARS[0];
+    hdr=themeHdr(id,first);body=themeBody(id,first);
+  }else if(type==='visuals'){
+    const first=Object.keys(VISUAL_KEYS)[0];
+    hdr=visualHdr(id,first);body=visualBody(id,first);
+  }
+  const typeClass=type==='cards'?'card':type==='decks'?'deck':type;
+  const el=document.createElement('div');
+  el.className=`node node-content cnt-${typeClass}`;el.id=id;
+  el.style.cssText=`left:${nd.x}px;top:${nd.y}px;`;
+  el.innerHTML=hdr+`<div class="node-body">${body}</div>`;
+  canvas.appendChild(el);
+  el.querySelector('.node-header').addEventListener('mousedown',e=>{
+    if(!e.target.classList.contains('nh-del'))startDrag(e,id);
+  });
+  updateBadge(modId);
+}
+
+function syncDisplays(){
+  // Sync card header icons/names
+  for(const cid of (st.contents[st.modules['cards']]||[])){
+    const icon=document.getElementById('card-i-'+cid)?.value;
+    const name=document.getElementById('card-n-'+cid)?.value;
+    if(icon)document.getElementById('ci-'+cid)&&(document.getElementById('ci-'+cid).textContent=icon);
+    if(name)document.getElementById('cn-'+cid)&&(document.getElementById('cn-'+cid).textContent=name);
+    const mult=document.getElementById('card-mult-'+cid)?.value;
+    if(mult)document.getElementById('mv-'+cid)&&(document.getElementById('mv-'+cid).textContent='×'+parseFloat(mult).toFixed(1));
+  }
+  // Sync deck names
+  for(const cid of (st.contents[st.modules['decks']]||[])){
+    const name=document.getElementById('deck-n-'+cid)?.value;
+    if(name)document.getElementById('dn-'+cid)&&(document.getElementById('dn-'+cid).textContent=name);
+    // Restore deck card list display
+    const cards=(document.getElementById('deck-cards-'+cid)?.value||'').split(',').filter(Boolean);
+    if(cards.length){
+      document.getElementById('deck-cnt-'+cid)&&(document.getElementById('deck-cnt-'+cid).textContent=cards.length);
+      document.getElementById('deck-list-'+cid)&&(document.getElementById('deck-list-'+cid).textContent=
+        cards.map(k=>{const c=BUILTIN_CARDS.find(x=>x.key===k);return c?c.i+c.n:k;}).join(' · '));
+    }
+  }
+  // Sync theme var header labels
+  for(const cid of (st.contents[st.modules['theme']]||[])){
+    const key=document.getElementById('tv-key-'+cid)?.value;
+    if(key)document.getElementById('tvt-'+cid)&&(document.getElementById('tvt-'+cid).textContent=key);
+    const val=document.getElementById('tvv-'+cid)?.value;
+    if(val){
+      document.getElementById('tvcp-'+cid)&&(document.getElementById('tvcp-'+cid).style.background=val);
+    }
+  }
+  // Sync visual override header labels
+  for(const cid of (st.contents[st.modules['visuals']]||[])){
+    const key=document.getElementById('vk-'+cid)?.value;
+    if(key){
+      document.getElementById('vvt-'+cid)&&(document.getElementById('vvt-'+cid).textContent=VISUAL_KEYS[key]?.label||key);
+      rebuildVisualProps(cid,key);
+    }
+  }
+}
+
+// ── Load mod from JSON file ──
+function showLoadErr(msg){
+  document.getElementById('load-err-msg').textContent=msg;
+  document.getElementById('load-err-bg').style.display='flex';
+}
+
+function handleLoadFile(input){
+  const file=input.files[0];
+  input.value=''; // reset so same file can be re-loaded
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    let mod;
+    try{mod=JSON.parse(e.target.result);}
+    catch(err){showLoadErr('The file isn\'t valid JSON. Make sure it\'s an unmodified Damage Roll mod file.');return;}
+    if(typeof mod!=='object'||Array.isArray(mod)||!mod){showLoadErr('The JSON doesn\'t look like a mod file — expected an object at the top level.');return;}
+    loadModFromJson(mod);
+  };
+  reader.readAsText(file);
+}
+
+function loadModFromJson(mod){
+  // Wipe existing canvas
+  clearDraft();
+  canvas.querySelectorAll('.node').forEach(el=>el.remove());
+  Object.assign(st,{nodes:{},conns:[],zoom:1,panX:0,panY:0,nid:1,cardId:1000,modules:{},contents:{}});
+  centerNodeId=null;svg.innerHTML='';
+
+  // Build center node
+  createCenter();
+
+  // Restore root fields
+  requestAnimationFrame(()=>{
+    if(mod.name)document.getElementById('c-name').value=mod.name;
+    if(mod.version)document.getElementById('c-version').value=mod.version;
+    if(mod.author)document.getElementById('c-author').value=mod.author;
+  });
+
+  // ── Cards ──
+  if(Array.isArray(mod.cards)&&mod.cards.length){
+    addModule('cards');
+    const modId=st.modules['cards'];
+    for(const card of mod.cards){
+      const id=mkId();
+      const modNd=st.nodes[modId];
+      const cnt=(st.contents[modId]||[]).length;
+      const x=(modNd?.x||980)+280;
+      const y=(modNd?.y||80)+cnt*30;
+      const cardId=typeof card.id==='number'?card.id:st.cardId++;
+      if(cardId>=st.cardId)st.cardId=cardId+1;
+      mkNode(id,x,y,'node node-content cnt-card',cardHdr(id),cardBody(id,cardId));
+      // Override the hidden id field with the real card id
+      const hiddenId=document.getElementById('card-id-'+id);
+      if(hiddenId)hiddenId.value=cardId;
+      if(!st.contents[modId])st.contents[modId]=[];
+      st.contents[modId].push(id);
+      updateBadge(modId);
+      st.conns.push({from:modId,to:id,color:MOD_COLORS['cards']});
+      // Populate fields
+      requestAnimationFrame(()=>{
+        const set=(elId,val)=>{const el=document.getElementById(elId);if(el&&val!=null)el.value=val;};
+        set('card-i-'+id, card.i||'🃏');
+        set('card-n-'+id, card.n||'Card');
+        set('card-cls-'+id, card.class||'utility');
+        set('card-rar-'+id, card.rarity||'common');
+        set('card-mult-'+id, card.multiplier??1);
+        set('card-d-'+id, card.d||'');
+        set('card-m-'+id, card.m||'');
+        // Sync display
+        const ci=document.getElementById('ci-'+id);if(ci)ci.textContent=card.i||'🃏';
+        const cn=document.getElementById('cn-'+id);if(cn)cn.textContent=card.n||'Card';
+        const mv=document.getElementById('mv-'+id);if(mv)mv.textContent='×'+parseFloat(card.multiplier??1).toFixed(1);
+      });
+    }
+  }
+
+  // ── Decks ──
+  if(Array.isArray(mod.decks)&&mod.decks.length){
+    addModule('decks');
+    const modId=st.modules['decks'];
+    for(const deck of mod.decks){
+      const id=mkId();
+      const modNd=st.nodes[modId];
+      const cnt=(st.contents[modId]||[]).length;
+      const x=(modNd?.x||980)+280;
+      const y=(modNd?.y||300)+cnt*30;
+      mkNode(id,x,y,'node node-content cnt-deck',deckHdr(id),deckBody(id));
+      if(!st.contents[modId])st.contents[modId]=[];
+      st.contents[modId].push(id);
+      updateBadge(modId);
+      st.conns.push({from:modId,to:id,color:MOD_COLORS['decks']});
+      requestAnimationFrame(()=>{
+        const set=(elId,val)=>{const el=document.getElementById(elId);if(el&&val!=null)el.value=val;};
+        set('deck-n-'+id, deck.name||'Deck');
+        set('deck-id-'+id, deck.id||'moddeck_'+id);
+        const dn=document.getElementById('dn-'+id);if(dn)dn.textContent=deck.name||'Deck';
+        if(Array.isArray(deck.cards)&&deck.cards.length){
+          const h=document.getElementById('deck-cards-'+id);if(h)h.value=deck.cards.join(',');
+          const cnt_el=document.getElementById('deck-cnt-'+id);if(cnt_el)cnt_el.textContent=deck.cards.length;
+          const list=document.getElementById('deck-list-'+id);
+          if(list)list.textContent=deck.cards.map(k=>{const c=BUILTIN_CARDS.find(x=>x.key===k);return c?c.i+c.n:k;}).join(' · ');
+        }
+      });
+    }
+  }
+
+  // ── Theme ──
+  if(mod.theme&&typeof mod.theme==='object'&&Object.keys(mod.theme).length){
+    addModule('theme');
+    const modId=st.modules['theme'];
+    for(const[key,val]of Object.entries(mod.theme)){
+      const id=mkId();
+      const modNd=st.nodes[modId];
+      const cnt=(st.contents[modId]||[]).length;
+      const x=(modNd?.x||980)+280;
+      const y=(modNd?.y||520)+cnt*30;
+      const safeKey=THEME_VARS.includes(key)?key:THEME_VARS[0];
+      mkNode(id,x,y,'node node-content cnt-themevar',themeHdr(id,safeKey),themeBody(id,safeKey));
+      if(!st.contents[modId])st.contents[modId]=[];
+      st.contents[modId].push(id);
+      updateBadge(modId);
+      st.conns.push({from:modId,to:id,color:MOD_COLORS['theme']});
+      requestAnimationFrame(()=>{
+        const keyEl=document.getElementById('tv-key-'+id);if(keyEl)keyEl.value=key;
+        const valEl=document.getElementById('tvv-'+id);if(valEl)valEl.value=val;
+        const ttEl=document.getElementById('tvt-'+id);if(ttEl)ttEl.textContent=key;
+        const cpEl=document.getElementById('tvcp-'+id);if(cpEl)cpEl.style.background=val;
+        // Sync native color picker if value looks like a hex color
+        if(/^#[0-9a-f]{6}$/i.test(val)){
+          const cpi=document.getElementById('tvcpi-'+id);if(cpi)cpi.value=val;
+        }
+      });
+    }
+  }
+
+  // ── Visuals ──
+  if(mod.visuals&&typeof mod.visuals==='object'&&Object.keys(mod.visuals).length){
+    addModule('visuals');
+    const modId=st.modules['visuals'];
+    for(const[key,props]of Object.entries(mod.visuals)){
+      if(!VISUAL_KEYS[key])continue;
+      const id=mkId();
+      const modNd=st.nodes[modId];
+      const cnt=(st.contents[modId]||[]).length;
+      const x=(modNd?.x||980)+280;
+      const y=(modNd?.y||740)+cnt*30;
+      mkNode(id,x,y,'node node-content cnt-visual',visualHdr(id,key),visualBody(id,key));
+      if(!st.contents[modId])st.contents[modId]=[];
+      st.contents[modId].push(id);
+      updateBadge(modId);
+      st.conns.push({from:modId,to:id,color:MOD_COLORS['visuals']});
+      requestAnimationFrame(()=>{
+        const kEl=document.getElementById('vk-'+id);if(kEl)kEl.value=key;
+        const ttEl=document.getElementById('vvt-'+id);if(ttEl)ttEl.textContent=VISUAL_KEYS[key]?.label||key;
+        rebuildVisualProps(id,key);
+        // Set prop values after rebuilding
+        requestAnimationFrame(()=>{
+          if(typeof props==='object'){
+            for(const[p,v]of Object.entries(props)){
+              const vi=document.getElementById('vvi-'+id+'-'+p);if(vi)vi.value=v;
+              const cp=document.getElementById('vcp-'+id+'-'+p);if(cp)cp.style.background=v;
+              if(/^#[0-9a-f]{6}$/i.test(v)){const cpi=document.getElementById('vcpi-'+id+'-'+p);if(cpi)cpi.value=v;}
+            }
+          }
+        });
+      });
+    }
+  }
+
+  centerView();
+  requestAnimationFrame(drawLines);
+  const modName=mod.name||'mod file';
+  showToast('Loaded "'+modName+'"');
+  // Schedule a save so the loaded mod becomes the draft
+  scheduleSave();
+}
+
+function init(){
+  // Check if homepage sent us a mod file to load
+  try{
+    const passed=sessionStorage.getItem('dmg_load_mod');
+    if(passed){
+      sessionStorage.removeItem('dmg_load_mod');
+      const mod=JSON.parse(passed);
+      // Brief delay so canvas is ready
+      setTimeout(()=>loadModFromJson(mod),50);
+      return;
+    }
+  }catch(e){}
+
+  const hasDraft=checkForDraft();
+  if(!hasDraft){
+    createCenter();
+    centerView();
+  }else{
+    // If user clicked Resume from the homepage banner, skip the dialog and restore immediately
+    const autoResume=sessionStorage.getItem('dmg_auto_resume');
+    if(autoResume){
+      sessionStorage.removeItem('dmg_auto_resume');
+      document.getElementById('resume-bg').style.display='none';
+      resumeDraft();
+    }else{
+      // Apply saved pan/zoom immediately so canvas isn't blank while dialog shows
+      applyXform();
+    }
+  }
 }
 init();
 </script>
