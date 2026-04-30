@@ -1,0 +1,1189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Damage Roll · Mod Maker</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;600;700;800&display=swap');
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:#0a0a0f;
+  --grid-color:rgba(255,255,255,0.03);
+  --surface:#12121a;
+  --surface2:#1a1a26;
+  --surface3:#22223a;
+  --border:rgba(255,255,255,0.07);
+  --border-bright:rgba(255,255,255,0.14);
+  --text:#e2e2f0;
+  --text-dim:#7070a0;
+  --text-muted:#3a3a60;
+  --accent:#5b6eff;
+  --accent-glow:rgba(91,110,255,0.2);
+  --green:#3effa0;
+  --yellow:#ffe066;
+  --mono:'JetBrains Mono',monospace;
+  --sans:'Syne',sans-serif;
+}
+
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--sans);user-select:none;}
+
+#topbar{
+  position:fixed;top:0;left:0;right:0;height:48px;z-index:100;
+  background:rgba(10,10,15,0.96);border-bottom:1px solid var(--border);
+  backdrop-filter:blur(12px);
+  display:flex;align-items:center;gap:12px;padding:0 18px;
+}
+.brand{font-size:14px;font-weight:800;letter-spacing:-.3px;}
+.brand em{color:var(--accent);font-style:normal;}
+.sep{width:1px;height:22px;background:var(--border);}
+.hint{font-size:11px;color:var(--text-muted);font-family:var(--mono);}
+.spacer{flex:1;}
+.tb-btn{
+  padding:7px 14px;border-radius:7px;font-size:12px;font-weight:700;
+  font-family:var(--sans);cursor:pointer;border:1px solid var(--border);
+  background:var(--surface2);color:var(--text-dim);transition:all .15s;letter-spacing:.3px;
+}
+.tb-btn:hover{color:var(--text);border-color:var(--border-bright);}
+.tb-btn.primary{background:var(--accent);border-color:transparent;color:#fff;}
+.tb-btn.primary:hover{opacity:.88;}
+
+#canvas-wrap{position:fixed;inset:48px 0 0 0;overflow:hidden;cursor:grab;}
+#canvas-wrap.grabbing{cursor:grabbing;}
+#canvas{position:absolute;width:6000px;height:4000px;transform-origin:0 0;}
+#canvas::before{
+  content:'';position:absolute;inset:0;
+  background-image:linear-gradient(var(--grid-color) 1px,transparent 1px),linear-gradient(90deg,var(--grid-color) 1px,transparent 1px);
+  background-size:40px 40px;
+}
+
+#lines-svg{position:absolute;inset:0;pointer-events:none;overflow:visible;}
+
+.node{
+  position:absolute;border-radius:12px;
+  box-shadow:0 4px 40px rgba(0,0,0,.5);
+  cursor:default;transition:box-shadow .2s;min-width:200px;
+}
+.node:hover{box-shadow:0 6px 60px rgba(0,0,0,.7);}
+.node.dragging{box-shadow:0 8px 80px rgba(0,0,0,.8);z-index:50;}
+
+.node-center{width:280px;background:linear-gradient(145deg,#1a1a2e,#12122a);border:1.5px solid rgba(91,110,255,.4);}
+.node-module{width:230px;}
+.node-content{width:210px;}
+
+.mod-cards{background:linear-gradient(145deg,#1e1a2e,#181228);border:1.5px solid rgba(255,107,107,.35);}
+.mod-decks{background:linear-gradient(145deg,#182820,#121e18);border:1.5px solid rgba(62,255,160,.3);}
+.mod-theme{background:linear-gradient(145deg,#22181a,#1a1018);border:1.5px solid rgba(255,224,102,.3);}
+.mod-visuals{background:linear-gradient(145deg,#1c1a2e,#14122a);border:1.5px solid rgba(160,120,255,.3);}
+
+.cnt-card{background:linear-gradient(145deg,#1e1a2e,#18162a);border:1.5px solid rgba(255,107,107,.22);}
+.cnt-deck{background:linear-gradient(145deg,#182220,#121c18);border:1.5px solid rgba(62,255,160,.18);}
+.cnt-themevar{background:linear-gradient(145deg,#221c18,#1a1612);border:1.5px solid rgba(255,224,102,.18);}
+.cnt-visual{background:linear-gradient(145deg,#1c1a2e,#161426);border:1.5px solid rgba(160,120,255,.18);}
+
+.node-header{
+  padding:10px 12px 8px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:8px;cursor:move;border-radius:12px 12px 0 0;
+}
+.nh-icon{font-size:15px;line-height:1;flex-shrink:0;}
+.nh-title{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.nh-badge{font-size:9px;font-family:var(--mono);padding:2px 6px;border-radius:4px;background:rgba(255,255,255,.06);color:var(--text-dim);flex-shrink:0;}
+.nh-del{width:18px;height:18px;border-radius:4px;border:none;cursor:pointer;background:rgba(255,80,80,.12);color:rgba(255,100,100,.7);font-size:11px;display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0;}
+.nh-del:hover{background:rgba(255,80,80,.28);color:#ff6060;}
+
+.node-body{padding:10px 12px;}
+
+.nf{margin-bottom:8px;}
+.nf:last-child{margin-bottom:0;}
+.nf label{display:block;font-size:9px;font-weight:600;color:var(--text-muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:3px;}
+.nf input,.nf select,.nf textarea{
+  width:100%;background:rgba(0,0,0,.35);border:1px solid var(--border);
+  border-radius:6px;padding:5px 8px;font-size:11px;color:var(--text);
+  font-family:var(--mono);outline:none;transition:border-color .15s;
+}
+.nf input:focus,.nf select:focus,.nf textarea:focus{border-color:var(--accent);}
+.nf select option{background:#1a1a26;font-family:var(--mono);}
+.nf textarea{resize:none;height:50px;line-height:1.5;font-family:var(--sans);font-size:11px;}
+.nf input[type=range]{padding:0;height:3px;accent-color:var(--accent);cursor:pointer;border:none;background:none;}
+.nf .range-row{display:flex;align-items:center;gap:6px;}
+.nf .range-val{font-family:var(--mono);font-size:10px;color:var(--yellow);white-space:nowrap;flex-shrink:0;}
+.nf .color-row{display:flex;align-items:center;gap:5px;}
+.nf .color-preview{width:22px;height:22px;border-radius:4px;border:1px solid var(--border);cursor:pointer;flex-shrink:0;}
+.nf input[type=color]{width:0;height:0;opacity:0;position:absolute;pointer-events:none;}
+
+.port{
+  position:absolute;width:13px;height:13px;border-radius:50%;
+  border:2px solid;cursor:crosshair;transition:transform .15s,box-shadow .15s;z-index:10;
+}
+.port:hover{transform:scale(1.5);box-shadow:0 0 10px currentColor;}
+.port-out{right:-7px;top:50%;margin-top:-7px;}
+.port-in{left:-7px;top:50%;margin-top:-7px;}
+
+.port-center{border-color:rgba(91,110,255,.9);background:rgba(91,110,255,.35);}
+.port-module{border-color:rgba(255,255,255,.3);background:rgba(255,255,255,.08);}
+.port-content{border-color:rgba(255,255,255,.18);background:rgba(255,255,255,.04);}
+
+.mod-cards .port-module{border-color:rgba(255,107,107,.8);background:rgba(255,107,107,.2);}
+.mod-decks .port-module{border-color:rgba(62,255,160,.8);background:rgba(62,255,160,.15);}
+.mod-theme .port-module{border-color:rgba(255,224,102,.8);background:rgba(255,224,102,.15);}
+.mod-visuals .port-module{border-color:rgba(160,120,255,.8);background:rgba(160,120,255,.15);}
+
+.cnt-card .port-content{border-color:rgba(255,107,107,.6);background:rgba(255,107,107,.12);}
+.cnt-deck .port-content{border-color:rgba(62,255,160,.6);background:rgba(62,255,160,.1);}
+.cnt-themevar .port-content{border-color:rgba(255,224,102,.6);background:rgba(255,224,102,.12);}
+.cnt-visual .port-content{border-color:rgba(160,120,255,.6);background:rgba(160,120,255,.12);}
+
+.add-btn{
+  width:100%;margin-top:8px;padding:6px;
+  background:rgba(255,255,255,.04);border:1px dashed rgba(255,255,255,.1);
+  border-radius:6px;color:var(--text-muted);font-size:11px;font-weight:600;
+  cursor:pointer;font-family:var(--sans);transition:all .15s;letter-spacing:.3px;
+}
+.add-btn:hover{background:rgba(255,255,255,.07);color:var(--text-dim);border-color:var(--border-bright);}
+
+.node-desc{font-size:10px;color:var(--text-muted);margin-bottom:8px;line-height:1.5;}
+
+#modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.72);backdrop-filter:blur(6px);z-index:200;display:none;align-items:center;justify-content:center;}
+#modal-bg.open{display:flex;}
+#modal{background:var(--surface);border:1px solid var(--border-bright);border-radius:14px;padding:24px;min-width:340px;box-shadow:0 20px 80px rgba(0,0,0,.85);}
+#modal h3{font-size:14px;font-weight:800;margin-bottom:5px;}
+#modal .modal-sub{font-size:11px;color:var(--text-dim);margin-bottom:18px;line-height:1.6;}
+#json-modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.8);backdrop-filter:blur(6px);z-index:300;display:none;align-items:center;justify-content:center;}
+#json-modal-bg.open{display:flex;}
+#json-modal{background:#0e0e18;border:1px solid var(--border-bright);border-radius:14px;width:660px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 20px 80px rgba(0,0,0,.9);}
+#json-modal-header{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--border);flex-shrink:0;}
+#json-modal-header h3{font-size:13px;font-weight:800;flex:1;}
+#json-modal pre{flex:1;overflow-y:auto;padding:16px 18px;font-family:var(--mono);font-size:11px;line-height:1.75;color:#a8c0e8;white-space:pre-wrap;word-break:break-all;}
+.mod-type-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;}
+.mod-type-btn{padding:12px;border-radius:9px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;text-align:left;transition:all .15s;font-family:var(--sans);}
+.mod-type-btn:hover{border-color:var(--border-bright);background:var(--surface3);}
+.mtb-icon{font-size:20px;margin-bottom:5px;}
+.mtb-title{font-size:12px;font-weight:700;color:var(--text);}
+.mtb-desc{font-size:10px;color:var(--text-dim);margin-top:2px;line-height:1.4;}
+.modal-cancel{width:100%;padding:8px;background:none;border:1px solid var(--border);border-radius:7px;color:var(--text-dim);font-size:12px;cursor:pointer;font-family:var(--sans);transition:all .15s;}
+.modal-cancel:hover{background:var(--surface2);}
+
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(10px);background:var(--green);color:#000;padding:9px 20px;border-radius:8px;font-size:12px;font-weight:700;font-family:var(--sans);opacity:0;transition:all .2s;pointer-events:none;z-index:300;white-space:nowrap;}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+#toolbar{position:fixed;bottom:18px;right:18px;z-index:100;display:flex;gap:6px;}
+.tool-btn{padding:7px 13px;border-radius:7px;font-size:11px;font-weight:700;font-family:var(--sans);cursor:pointer;border:1px solid var(--border);background:rgba(10,10,15,.92);backdrop-filter:blur(8px);color:var(--text-dim);transition:all .15s;}
+.tool-btn:hover{color:var(--text);border-color:var(--border-bright);}
+@keyframes pageFadeIn{from{opacity:0;}to{opacity:1;}}
+body{animation:pageFadeIn .35s ease forwards;}
+@keyframes pageFadeOut{from{opacity:1;}to{opacity:0;}}
+body.fading{animation:pageFadeOut .25s ease forwards;}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <a href="index.html" class="tb-btn" style="text-decoration:none;" onclick="event.preventDefault();document.body.classList.add('fading');setTimeout(()=>window.location.href='index.html',260);">← Home</a>
+  <div class="sep"></div>
+  <div class="brand">Damage Roll <em>Mod Maker</em></div>
+  <div class="sep"></div>
+  <div class="hint">drag nodes · add modules · export .json</div>
+  <div class="spacer"></div>
+  <button class="tb-btn" onclick="resetCanvas()">↺ Reset</button>
+  <button class="tb-btn" onclick="document.getElementById('load-file-input').click()">⬆ Load .json</button>
+  <input type="file" id="load-file-input" accept=".json,application/json" style="display:none;" onchange="handleLoadFile(this)">
+  <button class="tb-btn" onclick="showJson()">{ } Preview</button>
+  <button class="tb-btn primary" onclick="exportMod()">⬇ Export .json</button>
+</div>
+
+<div id="canvas-wrap">
+  <div id="canvas">
+    <svg id="lines-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+</div>
+
+<div id="toolbar">
+  <button class="tool-btn" onclick="zoomBy(-0.12)">−</button>
+  <button class="tool-btn" id="zoom-label" style="min-width:52px;text-align:center;">100%</button>
+  <button class="tool-btn" onclick="zoomBy(0.12)">+</button>
+  <button class="tool-btn" onclick="centerView()">⊙</button>
+</div>
+
+<div id="modal-bg">
+  <div id="modal">
+    <h3>Add Module</h3>
+    <div class="modal-sub">Choose what this module adds to your mod. Each type can only be added once.</div>
+    <div class="mod-type-grid">
+      <button class="mod-type-btn" onclick="addModule('cards')">
+        <div class="mtb-icon">🃏</div>
+        <div class="mtb-title">Cards</div>
+        <div class="mtb-desc">Add custom cards to the game</div>
+      </button>
+      <button class="mod-type-btn" onclick="addModule('decks')">
+        <div class="mtb-icon">📦</div>
+        <div class="mtb-title">Decks</div>
+        <div class="mtb-desc">Create custom card decks</div>
+      </button>
+      <button class="mod-type-btn" onclick="addModule('theme')">
+        <div class="mtb-icon">🎨</div>
+        <div class="mtb-title">Color Theme</div>
+        <div class="mtb-desc">Override CSS color variables</div>
+      </button>
+      <button class="mod-type-btn" onclick="addModule('visuals')">
+        <div class="mtb-icon">✨</div>
+        <div class="mtb-title">Visuals</div>
+        <div class="mtb-desc">Change UI element styles</div>
+      </button>
+    </div>
+    <button class="modal-cancel" onclick="closeModal()">Cancel</button>
+  </div>
+</div>
+
+<div id="json-modal-bg">
+  <div id="json-modal">
+    <div id="json-modal-header">
+      <h3>{ } JSON Preview</h3>
+      <button class="tb-btn" onclick="copyJsonModal()">⧉ Copy</button>
+      <button class="tb-btn" onclick="exportMod()">⬇ Export</button>
+      <button class="tb-btn" onclick="document.getElementById('json-modal-bg').classList.remove('open')" style="color:var(--text-dim);">✕</button>
+    </div>
+    <pre id="json-modal-pre"></pre>
+  </div>
+</div>
+
+<div id="load-err-bg" style="position:fixed;inset:0;background:rgba(0,0,0,.78);backdrop-filter:blur(8px);z-index:400;display:none;align-items:center;justify-content:center;">
+  <div style="background:#12121a;border:1px solid rgba(255,107,107,.35);border-radius:16px;padding:28px;max-width:380px;width:90%;box-shadow:0 24px 80px rgba(0,0,0,.9);">
+    <div style="font-size:22px;margin-bottom:10px;">⚠️</div>
+    <h3 style="font-family:var(--sans);font-size:15px;font-weight:800;color:var(--text);margin-bottom:8px;">Couldn't load mod file</h3>
+    <p id="load-err-msg" style="font-size:12px;color:var(--text-dim);line-height:1.7;margin-bottom:22px;font-family:var(--mono);"></p>
+    <button onclick="document.getElementById('load-err-bg').style.display='none'" style="width:100%;padding:10px;background:none;border:1px solid var(--border);border-radius:8px;color:var(--text-dim);font-size:12px;font-weight:700;font-family:var(--sans);cursor:pointer;">Dismiss</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- Resume dialog -->
+<div id="resume-bg" style="position:fixed;inset:0;background:rgba(0,0,0,.78);backdrop-filter:blur(8px);z-index:400;display:none;align-items:center;justify-content:center;">
+  <div id="resume-modal" style="background:#12121a;border:1px solid rgba(91,110,255,.35);border-radius:16px;padding:28px 28px 22px;max-width:400px;width:90%;box-shadow:0 24px 80px rgba(0,0,0,.9);">
+    <div style="font-size:22px;margin-bottom:10px;">💾</div>
+    <h3 style="font-family:var(--sans);font-size:16px;font-weight:800;color:var(--text);margin-bottom:8px;">Unsaved project found</h3>
+    <p id="resume-desc" style="font-size:12px;color:var(--text-dim);line-height:1.7;margin-bottom:22px;font-family:var(--mono);"></p>
+    <div style="display:flex;gap:10px;">
+      <button onclick="resumeDraft()" style="flex:1;padding:10px;background:var(--accent);border:none;border-radius:8px;color:#fff;font-size:12px;font-weight:800;font-family:var(--sans);cursor:pointer;letter-spacing:.3px;transition:opacity .15s;" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">Resume Project</button>
+      <button onclick="discardDraft()" style="flex:1;padding:10px;background:none;border:1px solid var(--border);border-radius:8px;color:var(--text-dim);font-size:12px;font-weight:700;font-family:var(--sans);cursor:pointer;letter-spacing:.3px;transition:all .15s;" onmouseover="this.style.borderColor='var(--border-bright)';this.style.color='var(--text)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-dim)'">Start Fresh</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const CLASSES={attack:'Attack',heal:'Heal',drain:'Drain',debuff:'Debuff',buff:'Buff',reflect:'Reflect',poison:'Poison',burn:'Burn',freeze:'Freeze',curse:'Curse',tariff:'Tariff',chain:'Chain',pierce:'Pierce',multi:'Multi',reroll:'Reroll',utility:'Utility'};
+const RARITIES=['common','uncommon','rare','epic','legendary'];
+const BUILTIN_CARDS=[{key:'attack',n:'Attack',i:'⚔️'},{key:'vampire',n:'Vampire',i:'🦇'},{key:'heal',n:'Heal',i:'🧪'},{key:'shield',n:'Shield',i:'🛡️'},{key:'bomb',n:'Bomb',i:'💣'},{key:'storm',n:'Storm',i:'⚡'},{key:'snipe',n:'Snipe',i:'🎯'},{key:'inferno',n:'Inferno',i:'🔥'},{key:'frost',n:'Frost',i:'❄️'},{key:'soul',n:'Soul',i:'💀'},{key:'leech',n:'Leech',i:'🩸'},{key:'regen',n:'Regen',i:'💚'},{key:'curse',n:'Curse',i:'🌀'},{key:'gold',n:'Gold',i:'✨'},{key:'bone',n:'Bone',i:'🦴'},{key:'tariff',n:'Tariff',i:'📜'},{key:'pet',n:'Pet',i:'🐾'},{key:'plague',n:'Plague',i:'🧫'},{key:'mirror',n:'Mirror',i:'🪞'}];
+const THEME_VARS=['--gold','--gold-dim','--gold-bright','--rare','--epic','--legendary','--common','--bg-deep','--bg-mid','--bg-surface','--border-gold','--border-dim','--text-primary','--text-secondary','--text-dim','--accent','--accent-dim','--card-bg','--card-border','--card-text','--card-rarity-common','--card-rarity-uncommon','--card-rarity-rare','--card-rarity-epic','--card-rarity-legendary','--hp-bar-player','--hp-bar-enemy','--die-face','--die-text','--btn-bg','--btn-border','--btn-text','--panel-bg','--panel-border'];
+const THEME_LABELS={'--gold':'Primary gold','--gold-dim':'Dim gold','--gold-bright':'Bright gold','--rare':'Rare color','--epic':'Epic color','--legendary':'Legendary color','--common':'Common color','--bg-deep':'Deep bg','--bg-mid':'Mid bg','--bg-surface':'Surface bg','--border-gold':'Gold border','--border-dim':'Dim border','--text-primary':'Primary text','--text-secondary':'Secondary text','--text-dim':'Dim text','--accent':'Accent','--accent-dim':'Dim accent','--card-bg':'Card bg','--card-border':'Card border','--card-text':'Card text','--card-rarity-common':'Rarity: common','--card-rarity-uncommon':'Rarity: uncommon','--card-rarity-rare':'Rarity: rare','--card-rarity-epic':'Rarity: epic','--card-rarity-legendary':'Rarity: legendary','--hp-bar-player':'Player HP','--hp-bar-enemy':'Enemy HP','--die-face':'Die face','--die-text':'Die text','--btn-bg':'Button bg','--btn-border':'Button border','--btn-text':'Button text','--panel-bg':'Panel bg','--panel-border':'Panel border'};
+const VISUAL_KEYS={'body-bg':{label:'Body Background',props:['background','background-color']},'panel-bg':{label:'Panel',props:['background','border-color']},'card-bg':{label:'Hand Card',props:['background','border-color','color']},'btn-style':{label:'Buttons',props:['background','border-color','color']},'hp-bar-player':{label:'Player HP Bar',props:['background']},'hp-bar-enemy':{label:'Enemy HP Bar',props:['background']},'title-color':{label:'Game Title',props:['color','text-shadow']},'overlay-bg':{label:'Overlay',props:['background']},'tooltip-bg':{label:'Tooltip',props:['background','border-color','color']}};
+const MOD_COLORS={cards:'rgba(255,107,107,.65)',decks:'rgba(62,255,160,.5)',theme:'rgba(255,224,102,.5)',visuals:'rgba(160,120,255,.55)'};
+const MOD_ICONS={cards:'🃏',decks:'📦',theme:'🎨',visuals:'✨'};
+const CENTER_COLOR='rgba(91,110,255,.55)';
+
+const st={nodes:{},conns:[],zoom:1,panX:0,panY:0,nid:1,cardId:1000,modules:{},contents:{}};
+let centerNodeId=null;
+
+const wrap=document.getElementById('canvas-wrap');
+const canvas=document.getElementById('canvas');
+const svg=document.getElementById('lines-svg');
+
+// ── Pan ──
+let isPan=false,panSt={x:0,y:0};
+wrap.addEventListener('mousedown',e=>{
+  const tgt=e.target;
+  if(tgt===wrap||tgt===canvas||tgt.tagName.toLowerCase()==='svg'||tgt.tagName.toLowerCase()==='path'||tgt.tagName.toLowerCase()==='g'){
+    isPan=true;panSt={x:e.clientX-st.panX,y:e.clientY-st.panY};wrap.classList.add('grabbing');
+  }
+});
+window.addEventListener('mousemove',e=>{
+  if(isPan){st.panX=e.clientX-panSt.x;st.panY=e.clientY-panSt.y;applyXform();}
+  if(dragging)moveDrag(e);
+});
+window.addEventListener('mouseup',()=>{
+  isPan=false;wrap.classList.remove('grabbing');
+  if(dragging)endDrag();
+});
+wrap.addEventListener('wheel',e=>{e.preventDefault();zoomBy(e.deltaY>0?-.1:.1,e.clientX,e.clientY);},{passive:false});
+
+function applyXform(){
+  canvas.style.transform=`translate(${st.panX}px,${st.panY}px) scale(${st.zoom})`;
+  document.getElementById('zoom-label').textContent=Math.round(st.zoom*100)+'%';
+}
+function zoomBy(d,cx,cy){
+  const pz=st.zoom;st.zoom=Math.max(.25,Math.min(2.5,st.zoom+d));
+  if(cx!==undefined){const r=st.zoom/pz;st.panX=cx-r*(cx-st.panX);st.panY=cy-r*(cy-st.panY);}
+  applyXform();
+}
+function centerView(){st.panX=wrap.clientWidth/2-680;st.panY=wrap.clientHeight/2-280;st.zoom=1;applyXform();}
+
+// ── Drag ──
+let dragging=null,dragOff={x:0,y:0};
+function startDrag(e,id){
+  e.stopPropagation();e.preventDefault();
+  const nd=st.nodes[id];
+  dragging=id;
+  const sx=st.panX/st.zoom,sy=st.panY/st.zoom;
+  dragOff={x:e.clientX/st.zoom-nd.x-sx,y:e.clientY/st.zoom-nd.y-sy};
+  document.getElementById(id).classList.add('dragging');
+}
+function moveDrag(e){
+  if(!dragging)return;
+  const nd=st.nodes[dragging];
+  nd.x=e.clientX/st.zoom-dragOff.x-st.panX/st.zoom;
+  nd.y=e.clientY/st.zoom-dragOff.y-st.panY/st.zoom;
+  const el=document.getElementById(dragging);
+  el.style.left=nd.x+'px';el.style.top=nd.y+'px';
+  drawLines();
+}
+function endDrag(){if(dragging){document.getElementById(dragging).classList.remove('dragging');dragging=null;}}
+
+// ── Lines ──
+function portPos(portEl,nodeId){
+  const nd=st.nodes[nodeId];
+  const nel=document.getElementById(nodeId);
+  const nw=nel.offsetWidth,nh=nel.offsetHeight;
+  const isOut=portEl.classList.contains('port-out');
+  const py=nd.y+nh/2;
+  return {x:isOut?nd.x+nw:nd.x, y:py};
+}
+function bz(x1,y1,x2,y2){const cx=(x1+x2)/2;return `M${x1},${y1} C${cx},${y1} ${cx},${y2} ${x2},${y2}`;}
+function drawLines(){
+  svg.innerHTML='';
+  st.conns.forEach(c=>{
+    const fe=document.getElementById(c.from);
+    const te=document.getElementById(c.to);
+    if(!fe||!te)return;
+    const fp=fe.querySelector('.port-out');
+    const tp=te.querySelector('.port-in');
+    if(!fp||!tp)return;
+    const f=portPos(fp,c.from);
+    const t=portPos(tp,c.to);
+    const path=document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d',bz(f.x,f.y,t.x,t.y));
+    path.setAttribute('stroke',c.color||'rgba(255,255,255,.2)');
+    path.setAttribute('stroke-width','2');
+    path.setAttribute('fill','none');
+    path.setAttribute('opacity','0.75');
+    svg.appendChild(path);
+  });
+}
+
+// ── Node factory ──
+function mkId(){return 'n'+(st.nid++);}
+function mkNode(id,x,y,cls,hdrHtml,bodyHtml){
+  const el=document.createElement('div');
+  el.className='node '+cls;el.id=id;
+  el.style.cssText=`left:${x}px;top:${y}px;`;
+  el.innerHTML=hdrHtml+`<div class="node-body">${bodyHtml}</div>`;
+  canvas.appendChild(el);
+  el.querySelector('.node-header').addEventListener('mousedown',e=>{
+    if(!e.target.classList.contains('nh-del'))startDrag(e,id);
+  });
+  st.nodes[id]={x,y};
+  return el;
+}
+
+// ── Center node ──
+function createCenter(){
+  const id=mkId();
+  const hdr=`<div class="node-header">
+    <span class="nh-icon">⬡</span>
+    <span class="nh-title">Mod Root</span>
+    <span class="nh-badge">center</span>
+    <div class="port port-out port-center" title="Connect modules here"></div>
+  </div>`;
+  const body=`
+    <div class="nf"><label>Mod Name</label><input type="text" id="c-name" placeholder="My Awesome Mod"></div>
+    <div class="nf"><label>Version</label><input type="text" id="c-version" placeholder="1.0.0"></div>
+    <div class="nf"><label>Author</label><input type="text" id="c-author" placeholder="your name"></div>
+    <button class="add-btn" onclick="openModal()">+ Add Module</button>
+  `;
+  mkNode(id,600,260,'node node-center',hdr,body);
+  centerNodeId=id;
+  return id;
+}
+
+// ── Module nodes ──
+const MODULE_POS={cards:{x:980,y:80},decks:{x:980,y:300},theme:{x:980,y:520},visuals:{x:980,y:740}};
+const MODULE_TITLES={cards:'Cards Module',decks:'Decks Module',theme:'Theme Module',visuals:'Visuals Module'};
+const MODULE_DESCS={cards:'Custom cards connect here.',decks:'Custom decks connect here.',theme:`Color vars — max ${THEME_VARS.length}`,visuals:`Visual overrides — max ${Object.keys(VISUAL_KEYS).length}`};
+const ADD_LABELS={cards:'+ Add Card',decks:'+ Add Deck',theme:'+ Add Color Var',visuals:'+ Add Visual Override'};
+
+function addModule(type){
+  closeModal();
+  if(st.modules[type]){showToast('This module already exists.','err');return;}
+  const id=mkId();
+  const pos=MODULE_POS[type];
+  const hdr=`<div class="node-header">
+    <span class="nh-icon">${MOD_ICONS[type]}</span>
+    <span class="nh-title">${MODULE_TITLES[type]}</span>
+    <span class="nh-badge" id="mb-${id}">0</span>
+    <button class="nh-del" onclick="removeModule('${id}','${type}')">✕</button>
+    <div class="port port-in port-module" style="left:-7px;top:50%;margin-top:-7px;position:absolute;" title="From mod root"></div>
+    <div class="port port-out port-module" title="To content nodes"></div>
+  </div>`;
+  const body=`<div class="node-desc">${MODULE_DESCS[type]}</div>
+    <button class="add-btn" onclick="addContent('${type}','${id}')">${ADD_LABELS[type]}</button>`;
+  mkNode(id,pos.x,pos.y,`node node-module mod-${type}`,hdr,body);
+  st.modules[type]=id;
+  st.contents[id]=[];
+  st.conns.push({from:centerNodeId,to:id,color:MOD_COLORS[type]});
+  requestAnimationFrame(drawLines);
+}
+
+function removeModule(id,type){
+  (st.contents[id]||[]).slice().forEach(cid=>removeContent(cid,false));
+  delete st.contents[id];delete st.modules[type];
+  st.conns=st.conns.filter(c=>c.from!==id&&c.to!==id);
+  document.getElementById(id)?.remove();delete st.nodes[id];
+  drawLines();
+}
+
+// ── Content nodes ──
+function getUsedInModule(modId,selector){
+  return (st.contents[modId]||[]).map(cid=>{
+    const el=document.getElementById(selector+cid);
+    return el?el.value:null;
+  }).filter(Boolean);
+}
+
+function addContent(type,modId){
+  if(type==='theme'){
+    const cnt=(st.contents[modId]||[]).length;
+    if(cnt>=THEME_VARS.length){showToast('Max '+THEME_VARS.length+' theme vars!','err');return;}
+  }
+  if(type==='visuals'){
+    const cnt=(st.contents[modId]||[]).length;
+    if(cnt>=Object.keys(VISUAL_KEYS).length){showToast('Max '+Object.keys(VISUAL_KEYS).length+' visual overrides!','err');return;}
+  }
+  const id=mkId();
+  const modNd=st.nodes[modId];
+  const cnt=(st.contents[modId]||[]).length;
+  const x=(modNd?.x||980)+280;
+  const y=(modNd?.y||200)+cnt*30;
+  const modType=Object.keys(st.modules).find(k=>st.modules[k]===modId)||type;
+
+  let hdr='',body='';
+  if(type==='cards'){
+    const cid=st.cardId++;
+    hdr=cardHdr(id);body=cardBody(id,cid);
+  }else if(type==='decks'){
+    hdr=deckHdr(id);body=deckBody(id);
+  }else if(type==='theme'){
+    const used=getUsedInModule(modId,'tv-key-');
+    const avail=THEME_VARS.filter(v=>!used.includes(v));
+    const first=avail[0]||THEME_VARS[0];
+    hdr=themeHdr(id,first);body=themeBody(id,first);
+  }else if(type==='visuals'){
+    const used=getUsedInModule(modId,'vk-');
+    const avail=Object.keys(VISUAL_KEYS).filter(k=>!used.includes(k));
+    const first=avail[0]||Object.keys(VISUAL_KEYS)[0];
+    hdr=visualHdr(id,first);body=visualBody(id,first);
+  }
+
+  mkNode(id,x,y,`node node-content cnt-${type==='cards'?'card':type==='decks'?'deck':type}`,hdr,body);
+  if(!st.contents[modId])st.contents[modId]=[];
+  st.contents[modId].push(id);
+  updateBadge(modId);
+  st.conns.push({from:modId,to:id,color:MOD_COLORS[modType]});
+  requestAnimationFrame(drawLines);
+}
+
+function removeContent(id,upd=true){
+  for(const[pid,ch]of Object.entries(st.contents)){
+    const i=ch.indexOf(id);
+    if(i>=0){ch.splice(i,1);if(upd)updateBadge(pid);break;}
+  }
+  st.conns=st.conns.filter(c=>c.from!==id&&c.to!==id);
+  document.getElementById(id)?.remove();delete st.nodes[id];
+  drawLines();
+}
+
+function updateBadge(modId){
+  const b=document.getElementById('mb-'+modId);
+  if(b)b.textContent=(st.contents[modId]||[]).length;
+}
+
+// ── Card content ──
+function cardHdr(nid){
+  return `<div class="node-header">
+    <span class="nh-icon" id="ci-${nid}">🃏</span>
+    <span class="nh-title" id="cn-${nid}">New Card</span>
+    <button class="nh-del" onclick="removeContent('${nid}')">✕</button>
+    <div class="port port-in port-content" style="left:-7px;top:50%;margin-top:-7px;position:absolute;"></div>
+  </div>`;
+}
+function cardBody(nid,cardId){
+  const clsOpts=Object.entries(CLASSES).map(([k,v])=>`<option value="${k}">${v}</option>`).join('');
+  const rarOpts=RARITIES.map(r=>`<option value="${r}">${r}</option>`).join('');
+  return `<input type="hidden" id="card-id-${nid}" value="${cardId}">
+    <div class="nf"><label>Icon (emoji)</label><input type="text" value="🃏" maxlength="4" id="card-i-${nid}" oninput="document.getElementById('ci-${nid}').textContent=this.value||'🃏'"></div>
+    <div class="nf"><label>Name</label><input type="text" value="New Card" id="card-n-${nid}" oninput="document.getElementById('cn-${nid}').textContent=this.value||'Card'"></div>
+    <div class="nf"><label>Class</label><select id="card-cls-${nid}">${clsOpts}</select></div>
+    <div class="nf"><label>Rarity</label><select id="card-rar-${nid}">${rarOpts}</select></div>
+    <div class="nf"><label>Multiplier</label>
+      <div class="range-row">
+        <input type="range" min="0.1" max="5" step="0.1" value="1" id="card-mult-${nid}" oninput="document.getElementById('mv-${nid}').textContent='×'+parseFloat(this.value).toFixed(1)">
+        <span class="range-val" id="mv-${nid}">×1.0</span>
+      </div>
+    </div>
+    <div class="nf"><label>Description</label><textarea id="card-d-${nid}" placeholder="What does this card do?"></textarea></div>
+    <div class="nf"><label>Mechanic note</label><input type="text" id="card-m-${nid}" placeholder="CRIT: X | FAIL: Y"></div>`;
+}
+
+// ── Deck content ──
+function deckHdr(nid){
+  return `<div class="node-header">
+    <span class="nh-icon">📦</span>
+    <span class="nh-title" id="dn-${nid}">New Deck</span>
+    <button class="nh-del" onclick="removeContent('${nid}')">✕</button>
+    <div class="port port-in port-content" style="left:-7px;top:50%;margin-top:-7px;position:absolute;"></div>
+  </div>`;
+}
+function deckBody(nid){
+  const builtinOpts=BUILTIN_CARDS.map(c=>`<option value="${c.key}">${c.i} ${c.n}</option>`).join('');
+  const moddedCards=(st.modules['cards']?st.contents[st.modules['cards']]||[]:[]).map(cid=>{
+    const name=document.getElementById('card-n-'+cid)?.value||'Card';
+    const icon=document.getElementById('card-i-'+cid)?.value||'🃏';
+    const id=document.getElementById('card-id-'+cid)?.value||cid;
+    return `<option value="${id}">${icon} ${name} (mod)</option>`;
+  }).join('');
+  const opts=builtinOpts+moddedCards;
+  return `<div class="nf"><label>Deck Name</label><input type="text" value="New Deck" id="deck-n-${nid}" oninput="document.getElementById('dn-${nid}').textContent=this.value||'Deck'"></div>
+    <div class="nf"><label>Deck ID</label><input type="text" value="moddeck_${nid}" id="deck-id-${nid}"></div>
+    <div class="nf"><label>Add card</label><select id="deck-sel-${nid}" style="height:72px;" size="4">${opts}</select></div>
+    <button class="add-btn" onclick="deckAddCard('${nid}')">+ Add Selected Card</button>
+    <div class="nf" style="margin-top:6px;"><label>In deck: <span id="deck-cnt-${nid}">0</span>/9</label>
+      <div id="deck-list-${nid}" style="font-size:10px;color:var(--text-dim);line-height:1.8;min-height:14px;"></div>
+    </div>
+    <input type="hidden" id="deck-cards-${nid}" value="">`;
+}
+function deckAddCard(nid){
+  const h=document.getElementById('deck-cards-'+nid);
+  const cards=h.value?h.value.split(','):[];
+  if(cards.length>=9){showToast('Max 9 cards!','err');return;}
+  const val=document.getElementById('deck-sel-'+nid).value;
+  cards.push(val);h.value=cards.join(',');
+  document.getElementById('deck-cnt-'+nid).textContent=cards.length;
+  document.getElementById('deck-list-'+nid).textContent=cards.map(k=>{const c=BUILTIN_CARDS.find(x=>x.key===k);return c?c.i+c.n:k;}).join(' · ');
+}
+
+// ── Theme var content ──
+function themeHdr(nid,v){
+  return `<div class="node-header">
+    <span class="nh-icon">🎨</span>
+    <span class="nh-title" id="tvt-${nid}">${v}</span>
+    <button class="nh-del" onclick="removeContent('${nid}')">✕</button>
+    <div class="port port-in port-content" style="left:-7px;top:50%;margin-top:-7px;position:absolute;"></div>
+  </div>`;
+}
+function themeBody(nid,first){
+  const opts=THEME_VARS.map(v=>`<option value="${v}" ${v===first?'selected':''}>${v}</option>`).join('');
+  return `<div class="nf"><label>Variable</label>
+    <select id="tv-key-${nid}" onchange="document.getElementById('tvt-${nid}').textContent=this.value">${opts}</select>
+  </div>
+  <div class="nf"><label>Value</label>
+    <div class="color-row">
+      <div class="color-preview" id="tvcp-${nid}" style="background:#c8a460;" onclick="document.getElementById('tvcpi-${nid}').click()"></div>
+      <input type="color" id="tvcpi-${nid}" value="#c8a460" oninput="document.getElementById('tvv-${nid}').value=this.value;document.getElementById('tvcp-${nid}').style.background=this.value">
+      <input type="text" id="tvv-${nid}" value="#c8a460" placeholder="color or gradient" style="flex:1;" oninput="document.getElementById('tvcp-${nid}').style.background=this.value">
+    </div>
+  </div>`;
+}
+
+// ── Visual override content ──
+function visualHdr(nid,k){
+  return `<div class="node-header">
+    <span class="nh-icon">✨</span>
+    <span class="nh-title" id="vvt-${nid}">${VISUAL_KEYS[k]?.label||k}</span>
+    <button class="nh-del" onclick="removeContent('${nid}')">✕</button>
+    <div class="port port-in port-content" style="left:-7px;top:50%;margin-top:-7px;position:absolute;"></div>
+  </div>`;
+}
+function visualBody(nid,first){
+  const opts=Object.entries(VISUAL_KEYS).map(([k,v])=>`<option value="${k}" ${k===first?'selected':''}>${v.label}</option>`).join('');
+  const propFields=(key)=>(VISUAL_KEYS[key]?.props||[]).map(p=>{
+    const isCol=p==='background'||p==='background-color'||p==='color'||p==='border-color';
+    return `<div class="nf"><label>${p}</label><div class="color-row">
+      ${isCol?`<div class="color-preview" id="vcp-${nid}-${p}" style="background:transparent;" onclick="document.getElementById('vcpi-${nid}-${p}').click()"></div>
+      <input type="color" id="vcpi-${nid}-${p}" value="#000000" oninput="document.getElementById('vcp-${nid}-${p}').style.background=this.value;document.getElementById('vvi-${nid}-${p}').value=this.value">`:``}
+      <input type="text" id="vvi-${nid}-${p}" placeholder="${p}" style="flex:1;" oninput="${isCol?`document.getElementById('vcp-${nid}-${p}').style.background=this.value`:``}">
+    </div></div>`;
+  }).join('');
+  return `<div class="nf"><label>Element</label>
+    <select id="vk-${nid}" onchange="document.getElementById('vvt-${nid}').textContent=VISUAL_KEYS[this.value]?.label||this.value;rebuildVisualProps('${nid}',this.value)">${opts}</select>
+  </div>
+  <div id="vprops-${nid}">${propFields(first)}</div>`;
+}
+function rebuildVisualProps(nid,key){
+  const container=document.getElementById('vprops-'+nid);
+  if(!container)return;
+  const props=VISUAL_KEYS[key]?.props||[];
+  container.innerHTML=props.map(p=>{
+    const isCol=p==='background'||p==='background-color'||p==='color'||p==='border-color';
+    return `<div class="nf"><label>${p}</label><div class="color-row">
+      ${isCol?`<div class="color-preview" id="vcp-${nid}-${p}" style="background:transparent;" onclick="document.getElementById('vcpi-${nid}-${p}').click()"></div>
+      <input type="color" id="vcpi-${nid}-${p}" value="#000000" oninput="document.getElementById('vcp-${nid}-${p}').style.background=this.value;document.getElementById('vvi-${nid}-${p}').value=this.value">`:``}
+      <input type="text" id="vvi-${nid}-${p}" placeholder="${p}" style="flex:1;" oninput="${isCol?`document.getElementById('vcp-${nid}-${p}').style.background=this.value`:``}">
+    </div></div>`;
+  }).join('');
+}
+
+// ── Modal ──
+function openModal(){document.getElementById('modal-bg').classList.add('open');}
+function closeModal(){document.getElementById('modal-bg').classList.remove('open');}
+document.getElementById('modal-bg').addEventListener('click',e=>{if(e.target===document.getElementById('modal-bg'))closeModal();});
+document.getElementById('json-modal-bg').addEventListener('click',e=>{if(e.target===document.getElementById('json-modal-bg'))document.getElementById('json-modal-bg').classList.remove('open');});
+
+// ── Build JSON ──
+function buildMod(){
+  const mod={};
+  mod.name=document.getElementById('c-name')?.value.trim()||'Unnamed Mod';
+  const v=document.getElementById('c-version')?.value.trim();if(v)mod.version=v;
+  const a=document.getElementById('c-author')?.value.trim();if(a)mod.author=a;
+
+  const cardsModId=st.modules['cards'];
+  if(cardsModId&&(st.contents[cardsModId]||[]).length){
+    mod.cards=(st.contents[cardsModId]).map(cid=>({
+      id:parseInt(document.getElementById('card-id-'+cid)?.value||1000),
+      n:document.getElementById('card-n-'+cid)?.value||'Card',
+      i:document.getElementById('card-i-'+cid)?.value||'🃏',
+      rarity:document.getElementById('card-rar-'+cid)?.value||'common',
+      class:document.getElementById('card-cls-'+cid)?.value||'utility',
+      multiplier:parseFloat(document.getElementById('card-mult-'+cid)?.value||1),
+      d:document.getElementById('card-d-'+cid)?.value||'',
+      m:document.getElementById('card-m-'+cid)?.value||'',
+    }));
+  }
+
+  const decksModId=st.modules['decks'];
+  if(decksModId&&(st.contents[decksModId]||[]).length){
+    mod.decks=(st.contents[decksModId]).map(cid=>({
+      id:document.getElementById('deck-id-'+cid)?.value||'deck_'+cid,
+      name:document.getElementById('deck-n-'+cid)?.value||'Deck',
+      cards:(document.getElementById('deck-cards-'+cid)?.value||'').split(',').filter(Boolean),
+    }));
+  }
+
+  const themeModId=st.modules['theme'];
+  if(themeModId&&(st.contents[themeModId]||[]).length){
+    const theme={};
+    (st.contents[themeModId]).forEach(cid=>{
+      const key=document.getElementById('tv-key-'+cid)?.value;
+      const val=document.getElementById('tvv-'+cid)?.value;
+      if(key&&val&&val.trim())theme[key]=val.trim();
+    });
+    if(Object.keys(theme).length)mod.theme=theme;
+  }
+
+  const visModId=st.modules['visuals'];
+  if(visModId&&(st.contents[visModId]||[]).length){
+    const vis={};
+    (st.contents[visModId]).forEach(cid=>{
+      const key=document.getElementById('vk-'+cid)?.value;
+      if(!key)return;
+      vis[key]={};
+      (VISUAL_KEYS[key]?.props||[]).forEach(p=>{
+        const val=document.getElementById('vvi-'+cid+'-'+p)?.value;
+        if(val&&val.trim())vis[key][p]=val.trim();
+      });
+      if(!Object.keys(vis[key]).length)delete vis[key];
+    });
+    if(Object.keys(vis).length)mod.visuals=vis;
+  }
+  return mod;
+}
+
+function showJson(){
+  const j=JSON.stringify(buildMod(),null,2);
+  document.getElementById('json-modal-pre').textContent=j;
+  document.getElementById('json-modal-bg').classList.add('open');
+}
+function copyJsonModal(){
+  const txt=document.getElementById('json-modal-pre').textContent;
+  navigator.clipboard.writeText(txt).then(()=>showToast('Copied!'));
+}
+
+function exportMod(){
+  const mod=buildMod();
+  const name=(mod.name||'mod').replace(/[^a-z0-9_-]/gi,'_').toLowerCase();
+  const blob=new Blob([JSON.stringify(mod,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download=name+'.json';a.click();URL.revokeObjectURL(url);
+  clearDraft();
+  showToast('Exported '+name+'.json');
+}
+
+function resetCanvas(){
+  if(!confirm('Reset everything? All mod data will be lost.'))return;
+  clearDraft();
+  canvas.querySelectorAll('.node').forEach(el=>el.remove());
+  Object.assign(st,{nodes:{},conns:[],zoom:1,panX:0,panY:0,nid:1,cardId:1000,modules:{},contents:{}});
+  centerNodeId=null;svg.innerHTML='';
+  createCenter();
+  centerView();
+}
+
+function showToast(msg,type){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.style.background=type==='err'?'#ff6b6b':'var(--green)';t.style.color=type==='err'?'#fff':'#000';
+  t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400);
+}
+
+// ── Autosave ──
+const SAVE_KEY='dmg_modmaker_draft';
+let saveTimer=null;
+
+function collectFieldData(){
+  // Snapshot all current input/select/textarea values keyed by element id
+  const fields={};
+  canvas.querySelectorAll('input,select,textarea').forEach(el=>{
+    if(el.id)fields[el.id]=el.value;
+  });
+  return fields;
+}
+
+function saveDraft(){
+  try{
+    const snap={
+      st:JSON.parse(JSON.stringify(st)),
+      centerNodeId,
+      fields:collectFieldData(),
+      savedAt:Date.now()
+    };
+    localStorage.setItem(SAVE_KEY,JSON.stringify(snap));
+  }catch(e){/* storage full or unavailable */}
+}
+
+function clearDraft(){
+  localStorage.removeItem(SAVE_KEY);
+}
+
+function scheduleSave(){
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(saveDraft,800);
+}
+
+// Save on any input change inside canvas
+canvas.addEventListener('input',scheduleSave);
+canvas.addEventListener('change',scheduleSave);
+
+// Save immediately before tab closes
+window.addEventListener('beforeunload',()=>{
+  // Only save if there's actual content beyond a blank mod
+  const hasContent=Object.keys(st.modules).length>0||
+    (document.getElementById('c-name')?.value.trim()&&document.getElementById('c-name').value.trim()!=='');
+  if(hasContent)saveDraft();
+});
+
+// ── Draft restore ──
+function isDraftMeaningful(snap){
+  if(!snap||!snap.st)return false;
+  const hasModules=Object.keys(snap.st.modules||{}).length>0;
+  const name=snap.fields?.['c-name']?.trim();
+  const hasName=name&&name!=='';
+  return hasModules||hasName;
+}
+
+function resumeDraft(){
+  document.getElementById('resume-bg').style.display='none';
+  const raw=localStorage.getItem(SAVE_KEY);
+  if(!raw)return;
+  const snap=JSON.parse(raw);
+
+  // Restore st
+  Object.assign(st,snap.st);
+  centerNodeId=snap.centerNodeId;
+
+  // Rebuild all nodes from saved st
+  canvas.querySelectorAll('.node').forEach(el=>el.remove());
+  svg.innerHTML='';
+
+  // Recreate center node
+  rebuildCenterNode();
+
+  // Recreate module nodes
+  for(const[type,modId]of Object.entries(st.modules)){
+    rebuildModuleNode(type,modId);
+  }
+
+  // Recreate content nodes
+  for(const[modId,cids]of Object.entries(st.contents)){
+    const type=Object.keys(st.modules).find(k=>st.modules[k]===modId);
+    if(!type)continue;
+    for(const cid of cids){
+      rebuildContentNode(type,modId,cid);
+    }
+  }
+
+  // Restore all field values
+  requestAnimationFrame(()=>{
+    for(const[id,val]of Object.entries(snap.fields||{})){
+      const el=document.getElementById(id);
+      if(el)el.value=val;
+    }
+    // Re-sync display elements that depend on field values
+    syncDisplays();
+    applyXform();
+    requestAnimationFrame(drawLines);
+  });
+}
+
+function discardDraft(){
+  clearDraft();
+  document.getElementById('resume-bg').style.display='none';
+  createCenter();
+  centerView();
+}
+
+function checkForDraft(){
+  try{
+    const raw=localStorage.getItem(SAVE_KEY);
+    if(!raw)return false;
+    const snap=JSON.parse(raw);
+    if(!isDraftMeaningful(snap))return false;
+    const name=snap.fields?.['c-name']?.trim()||'Unnamed Mod';
+    const ago=Math.round((Date.now()-snap.savedAt)/60000);
+    const agoStr=ago<1?'just now':ago===1?'1 minute ago':ago<60?ago+' minutes ago':Math.round(ago/60)+' hours ago';
+    document.getElementById('resume-desc').textContent=
+      `"${name}" · last saved ${agoStr}`;
+    document.getElementById('resume-bg').style.display='flex';
+    return true;
+  }catch(e){return false;}
+}
+
+// ── Rebuild helpers (recreate DOM nodes from saved state) ──
+function rebuildCenterNode(){
+  const id=centerNodeId;
+  const nd=st.nodes[id];
+  const hdr=`<div class="node-header">
+    <span class="nh-icon">⬡</span>
+    <span class="nh-title">Mod Root</span>
+    <span class="nh-badge">center</span>
+    <div class="port port-out port-center" title="Connect modules here"></div>
+  </div>`;
+  const body=`
+    <div class="nf"><label>Mod Name</label><input type="text" id="c-name" placeholder="My Awesome Mod"></div>
+    <div class="nf"><label>Version</label><input type="text" id="c-version" placeholder="1.0.0"></div>
+    <div class="nf"><label>Author</label><input type="text" id="c-author" placeholder="your name"></div>
+    <button class="add-btn" onclick="openModal()">+ Add Module</button>
+  `;
+  const el=document.createElement('div');
+  el.className='node node-center';el.id=id;
+  el.style.cssText=`left:${nd.x}px;top:${nd.y}px;`;
+  el.innerHTML=hdr+`<div class="node-body">${body}</div>`;
+  canvas.appendChild(el);
+  el.querySelector('.node-header').addEventListener('mousedown',e=>{
+    if(!e.target.classList.contains('nh-del'))startDrag(e,id);
+  });
+}
+
+function rebuildModuleNode(type,id){
+  const nd=st.nodes[id];
+  if(!nd)return;
+  const MODULE_TITLES={cards:'Cards Module',decks:'Decks Module',theme:'Theme Module',visuals:'Visuals Module'};
+  const MODULE_DESCS={cards:'Custom cards connect here.',decks:'Custom decks connect here.',theme:`Color vars — max ${THEME_VARS.length}`,visuals:`Visual overrides — max ${Object.keys(VISUAL_KEYS).length}`};
+  const ADD_LABELS={cards:'+ Add Card',decks:'+ Add Deck',theme:'+ Add Color Var',visuals:'+ Add Visual Override'};
+  const hdr=`<div class="node-header">
+    <span class="nh-icon">${MOD_ICONS[type]}</span>
+    <span class="nh-title">${MODULE_TITLES[type]}</span>
+    <span class="nh-badge" id="mb-${id}">0</span>
+    <button class="nh-del" onclick="removeModule('${id}','${type}')">✕</button>
+    <div class="port port-in port-module" style="left:-7px;top:50%;margin-top:-7px;position:absolute;" title="From mod root"></div>
+    <div class="port port-out port-module" title="To content nodes"></div>
+  </div>`;
+  const body=`<div class="node-desc">${MODULE_DESCS[type]}</div>
+    <button class="add-btn" onclick="addContent('${type}','${id}')">${ADD_LABELS[type]}</button>`;
+  const el=document.createElement('div');
+  el.className=`node node-module mod-${type}`;el.id=id;
+  el.style.cssText=`left:${nd.x}px;top:${nd.y}px;`;
+  el.innerHTML=hdr+`<div class="node-body">${body}</div>`;
+  canvas.appendChild(el);
+  el.querySelector('.node-header').addEventListener('mousedown',e=>{
+    if(!e.target.classList.contains('nh-del'))startDrag(e,id);
+  });
+}
+
+function rebuildContentNode(type,modId,id){
+  const nd=st.nodes[id];
+  if(!nd)return;
+  let hdr='',body='';
+  if(type==='cards'){
+    // Use a placeholder cardId — the real value is restored from saved fields
+    hdr=cardHdr(id);body=cardBody(id,st.cardId);
+  }else if(type==='decks'){
+    hdr=deckHdr(id);body=deckBody(id);
+  }else if(type==='theme'){
+    const first=THEME_VARS[0];
+    hdr=themeHdr(id,first);body=themeBody(id,first);
+  }else if(type==='visuals'){
+    const first=Object.keys(VISUAL_KEYS)[0];
+    hdr=visualHdr(id,first);body=visualBody(id,first);
+  }
+  const typeClass=type==='cards'?'card':type==='decks'?'deck':type;
+  const el=document.createElement('div');
+  el.className=`node node-content cnt-${typeClass}`;el.id=id;
+  el.style.cssText=`left:${nd.x}px;top:${nd.y}px;`;
+  el.innerHTML=hdr+`<div class="node-body">${body}</div>`;
+  canvas.appendChild(el);
+  el.querySelector('.node-header').addEventListener('mousedown',e=>{
+    if(!e.target.classList.contains('nh-del'))startDrag(e,id);
+  });
+  updateBadge(modId);
+}
+
+function syncDisplays(){
+  // Sync card header icons/names
+  for(const cid of (st.contents[st.modules['cards']]||[])){
+    const icon=document.getElementById('card-i-'+cid)?.value;
+    const name=document.getElementById('card-n-'+cid)?.value;
+    if(icon)document.getElementById('ci-'+cid)&&(document.getElementById('ci-'+cid).textContent=icon);
+    if(name)document.getElementById('cn-'+cid)&&(document.getElementById('cn-'+cid).textContent=name);
+    const mult=document.getElementById('card-mult-'+cid)?.value;
+    if(mult)document.getElementById('mv-'+cid)&&(document.getElementById('mv-'+cid).textContent='×'+parseFloat(mult).toFixed(1));
+  }
+  // Sync deck names
+  for(const cid of (st.contents[st.modules['decks']]||[])){
+    const name=document.getElementById('deck-n-'+cid)?.value;
+    if(name)document.getElementById('dn-'+cid)&&(document.getElementById('dn-'+cid).textContent=name);
+    // Restore deck card list display
+    const cards=(document.getElementById('deck-cards-'+cid)?.value||'').split(',').filter(Boolean);
+    if(cards.length){
+      document.getElementById('deck-cnt-'+cid)&&(document.getElementById('deck-cnt-'+cid).textContent=cards.length);
+      document.getElementById('deck-list-'+cid)&&(document.getElementById('deck-list-'+cid).textContent=
+        cards.map(k=>{const c=BUILTIN_CARDS.find(x=>x.key===k);return c?c.i+c.n:k;}).join(' · '));
+    }
+  }
+  // Sync theme var header labels
+  for(const cid of (st.contents[st.modules['theme']]||[])){
+    const key=document.getElementById('tv-key-'+cid)?.value;
+    if(key)document.getElementById('tvt-'+cid)&&(document.getElementById('tvt-'+cid).textContent=key);
+    const val=document.getElementById('tvv-'+cid)?.value;
+    if(val){
+      document.getElementById('tvcp-'+cid)&&(document.getElementById('tvcp-'+cid).style.background=val);
+    }
+  }
+  // Sync visual override header labels
+  for(const cid of (st.contents[st.modules['visuals']]||[])){
+    const key=document.getElementById('vk-'+cid)?.value;
+    if(key){
+      document.getElementById('vvt-'+cid)&&(document.getElementById('vvt-'+cid).textContent=VISUAL_KEYS[key]?.label||key);
+      rebuildVisualProps(cid,key);
+    }
+  }
+}
+
+// ── Load mod from JSON file ──
+function showLoadErr(msg){
+  document.getElementById('load-err-msg').textContent=msg;
+  document.getElementById('load-err-bg').style.display='flex';
+}
+
+function handleLoadFile(input){
+  const file=input.files[0];
+  input.value=''; // reset so same file can be re-loaded
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    let mod;
+    try{mod=JSON.parse(e.target.result);}
+    catch(err){showLoadErr('The file isn\'t valid JSON. Make sure it\'s an unmodified Damage Roll mod file.');return;}
+    if(typeof mod!=='object'||Array.isArray(mod)||!mod){showLoadErr('The JSON doesn\'t look like a mod file — expected an object at the top level.');return;}
+    loadModFromJson(mod);
+  };
+  reader.readAsText(file);
+}
+
+function loadModFromJson(mod){
+  // Wipe existing canvas
+  clearDraft();
+  canvas.querySelectorAll('.node').forEach(el=>el.remove());
+  Object.assign(st,{nodes:{},conns:[],zoom:1,panX:0,panY:0,nid:1,cardId:1000,modules:{},contents:{}});
+  centerNodeId=null;svg.innerHTML='';
+
+  // Build center node
+  createCenter();
+
+  // Restore root fields
+  requestAnimationFrame(()=>{
+    if(mod.name)document.getElementById('c-name').value=mod.name;
+    if(mod.version)document.getElementById('c-version').value=mod.version;
+    if(mod.author)document.getElementById('c-author').value=mod.author;
+  });
+
+  // ── Cards ──
+  if(Array.isArray(mod.cards)&&mod.cards.length){
+    addModule('cards');
+    const modId=st.modules['cards'];
+    for(const card of mod.cards){
+      const id=mkId();
+      const modNd=st.nodes[modId];
+      const cnt=(st.contents[modId]||[]).length;
+      const x=(modNd?.x||980)+280;
+      const y=(modNd?.y||80)+cnt*30;
+      const cardId=typeof card.id==='number'?card.id:st.cardId++;
+      if(cardId>=st.cardId)st.cardId=cardId+1;
+      mkNode(id,x,y,'node node-content cnt-card',cardHdr(id),cardBody(id,cardId));
+      // Override the hidden id field with the real card id
+      const hiddenId=document.getElementById('card-id-'+id);
+      if(hiddenId)hiddenId.value=cardId;
+      if(!st.contents[modId])st.contents[modId]=[];
+      st.contents[modId].push(id);
+      updateBadge(modId);
+      st.conns.push({from:modId,to:id,color:MOD_COLORS['cards']});
+      // Populate fields
+      requestAnimationFrame(()=>{
+        const set=(elId,val)=>{const el=document.getElementById(elId);if(el&&val!=null)el.value=val;};
+        set('card-i-'+id, card.i||'🃏');
+        set('card-n-'+id, card.n||'Card');
+        set('card-cls-'+id, card.class||'utility');
+        set('card-rar-'+id, card.rarity||'common');
+        set('card-mult-'+id, card.multiplier??1);
+        set('card-d-'+id, card.d||'');
+        set('card-m-'+id, card.m||'');
+        // Sync display
+        const ci=document.getElementById('ci-'+id);if(ci)ci.textContent=card.i||'🃏';
+        const cn=document.getElementById('cn-'+id);if(cn)cn.textContent=card.n||'Card';
+        const mv=document.getElementById('mv-'+id);if(mv)mv.textContent='×'+parseFloat(card.multiplier??1).toFixed(1);
+      });
+    }
+  }
+
+  // ── Decks ──
+  if(Array.isArray(mod.decks)&&mod.decks.length){
+    addModule('decks');
+    const modId=st.modules['decks'];
+    for(const deck of mod.decks){
+      const id=mkId();
+      const modNd=st.nodes[modId];
+      const cnt=(st.contents[modId]||[]).length;
+      const x=(modNd?.x||980)+280;
+      const y=(modNd?.y||300)+cnt*30;
+      mkNode(id,x,y,'node node-content cnt-deck',deckHdr(id),deckBody(id));
+      if(!st.contents[modId])st.contents[modId]=[];
+      st.contents[modId].push(id);
+      updateBadge(modId);
+      st.conns.push({from:modId,to:id,color:MOD_COLORS['decks']});
+      requestAnimationFrame(()=>{
+        const set=(elId,val)=>{const el=document.getElementById(elId);if(el&&val!=null)el.value=val;};
+        set('deck-n-'+id, deck.name||'Deck');
+        set('deck-id-'+id, deck.id||'moddeck_'+id);
+        const dn=document.getElementById('dn-'+id);if(dn)dn.textContent=deck.name||'Deck';
+        if(Array.isArray(deck.cards)&&deck.cards.length){
+          const h=document.getElementById('deck-cards-'+id);if(h)h.value=deck.cards.join(',');
+          const cnt_el=document.getElementById('deck-cnt-'+id);if(cnt_el)cnt_el.textContent=deck.cards.length;
+          const list=document.getElementById('deck-list-'+id);
+          if(list)list.textContent=deck.cards.map(k=>{const c=BUILTIN_CARDS.find(x=>x.key===k);return c?c.i+c.n:k;}).join(' · ');
+        }
+      });
+    }
+  }
+
+  // ── Theme ──
+  if(mod.theme&&typeof mod.theme==='object'&&Object.keys(mod.theme).length){
+    addModule('theme');
+    const modId=st.modules['theme'];
+    for(const[key,val]of Object.entries(mod.theme)){
+      const id=mkId();
+      const modNd=st.nodes[modId];
+      const cnt=(st.contents[modId]||[]).length;
+      const x=(modNd?.x||980)+280;
+      const y=(modNd?.y||520)+cnt*30;
+      const safeKey=THEME_VARS.includes(key)?key:THEME_VARS[0];
+      mkNode(id,x,y,'node node-content cnt-themevar',themeHdr(id,safeKey),themeBody(id,safeKey));
+      if(!st.contents[modId])st.contents[modId]=[];
+      st.contents[modId].push(id);
+      updateBadge(modId);
+      st.conns.push({from:modId,to:id,color:MOD_COLORS['theme']});
+      requestAnimationFrame(()=>{
+        const keyEl=document.getElementById('tv-key-'+id);if(keyEl)keyEl.value=key;
+        const valEl=document.getElementById('tvv-'+id);if(valEl)valEl.value=val;
+        const ttEl=document.getElementById('tvt-'+id);if(ttEl)ttEl.textContent=key;
+        const cpEl=document.getElementById('tvcp-'+id);if(cpEl)cpEl.style.background=val;
+        // Sync native color picker if value looks like a hex color
+        if(/^#[0-9a-f]{6}$/i.test(val)){
+          const cpi=document.getElementById('tvcpi-'+id);if(cpi)cpi.value=val;
+        }
+      });
+    }
+  }
+
+  // ── Visuals ──
+  if(mod.visuals&&typeof mod.visuals==='object'&&Object.keys(mod.visuals).length){
+    addModule('visuals');
+    const modId=st.modules['visuals'];
+    for(const[key,props]of Object.entries(mod.visuals)){
+      if(!VISUAL_KEYS[key])continue;
+      const id=mkId();
+      const modNd=st.nodes[modId];
+      const cnt=(st.contents[modId]||[]).length;
+      const x=(modNd?.x||980)+280;
+      const y=(modNd?.y||740)+cnt*30;
+      mkNode(id,x,y,'node node-content cnt-visual',visualHdr(id,key),visualBody(id,key));
+      if(!st.contents[modId])st.contents[modId]=[];
+      st.contents[modId].push(id);
+      updateBadge(modId);
+      st.conns.push({from:modId,to:id,color:MOD_COLORS['visuals']});
+      requestAnimationFrame(()=>{
+        const kEl=document.getElementById('vk-'+id);if(kEl)kEl.value=key;
+        const ttEl=document.getElementById('vvt-'+id);if(ttEl)ttEl.textContent=VISUAL_KEYS[key]?.label||key;
+        rebuildVisualProps(id,key);
+        // Set prop values after rebuilding
+        requestAnimationFrame(()=>{
+          if(typeof props==='object'){
+            for(const[p,v]of Object.entries(props)){
+              const vi=document.getElementById('vvi-'+id+'-'+p);if(vi)vi.value=v;
+              const cp=document.getElementById('vcp-'+id+'-'+p);if(cp)cp.style.background=v;
+              if(/^#[0-9a-f]{6}$/i.test(v)){const cpi=document.getElementById('vcpi-'+id+'-'+p);if(cpi)cpi.value=v;}
+            }
+          }
+        });
+      });
+    }
+  }
+
+  centerView();
+  requestAnimationFrame(drawLines);
+  const modName=mod.name||'mod file';
+  showToast('Loaded "'+modName+'"');
+  // Schedule a save so the loaded mod becomes the draft
+  scheduleSave();
+}
+
+function init(){
+  // Check if homepage sent us a mod file to load
+  try{
+    const passed=sessionStorage.getItem('dmg_load_mod');
+    if(passed){
+      sessionStorage.removeItem('dmg_load_mod');
+      const mod=JSON.parse(passed);
+      // Brief delay so canvas is ready
+      setTimeout(()=>loadModFromJson(mod),50);
+      return;
+    }
+  }catch(e){}
+
+  const hasDraft=checkForDraft();
+  if(!hasDraft){
+    createCenter();
+    centerView();
+  }else{
+    // If user clicked Resume from the homepage banner, skip the dialog and restore immediately
+    const autoResume=sessionStorage.getItem('dmg_auto_resume');
+    if(autoResume){
+      sessionStorage.removeItem('dmg_auto_resume');
+      document.getElementById('resume-bg').style.display='none';
+      resumeDraft();
+    }else{
+      // Apply saved pan/zoom immediately so canvas isn't blank while dialog shows
+      applyXform();
+    }
+  }
+}
+init();
+</script>
+</body>
+</html>
